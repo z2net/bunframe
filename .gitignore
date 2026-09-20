@@ -1,0 +1,37 @@
+# ===== Rust =====
+target/
+**/*.rs.bk
+
+# ===== Bun / JS =====
+node_modules/
+.bun/
+*.tsbuildinfo
+*.log
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ===== Editors =====
+.idea/
+*.swp
+.vscode/*
+!.vscode/extensions.json
+
+# ===== Personal AI / agent tooling (NEVER commit) =====
+.grok/
+.claude/
+.zcode/
+.codex/
+.opencode/
+.hermes/
+.mcp/
+.cursor/
+.mimosa/
+
+# ===== Secrets =====
+.env
+.env.*
+*.pem
+*.key

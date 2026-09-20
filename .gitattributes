@@ -1,0 +1,2 @@
+*.bffi/bffi.api.json text eol=lf
+*.bffi/api.gen.ts text eol=lf

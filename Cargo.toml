@@ -1,0 +1,35 @@
+[package]
+name = "bunframe-core"
+description = "The bunframe native shell: wry (webview) windows, events and the IPC bridge driven from Bun through the bffi binding."
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/z2net/bunframe"
+rust-version = "1.98.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+# Writes .bffi/bffi.api.json from module_def::MODULE (the loader JSON
+# artifact consumed by the @z2net/bffi pipeline).
+name = "emit-json"
+path = "src/bin/emit_json.rs"
+
+[dependencies]
+bffi = "0.2.1"
+# Pinned exactly (the wry dev line moves fast): the latest stable pair
+# at the time of writing. wry needs any window implementing
+# `HasWindowHandle`; winit 0.30 is the version wry itself tests
+# against, and both share the same `dpi` crate for sizes.
+wry = { version = "=0.57.0", features = ["devtools"] }
+winit = "=0.30.13"
+# Blocking push-event delivery on the loop thread (the events stream
+# producer parks with backpressure).
+pollster = "1"
+
+[profile.release]
+lto = "fat"
+strip = true
+codegen-units = 1

@@ -1,0 +1,680 @@
+{
+  "bffi": 1,
+  "module": "bunframe",
+  "abiVersion": 1,
+  "exportsHash": "4868820008953266211",
+  "functions": [
+    {
+      "name": "window_open",
+      "export": "bffi_window_open",
+      "docs": [
+        "Opens a window described by `config` (inline `html` or a `url`,",
+        "title, size, min size, decorations, transparency, position,",
+        "maximized/visible/always-on-top/skip-taskbar, devtools) and",
+        "returns its opaque handle. The first call spawns the dedicated",
+        "loop thread (winit event loop + window + wry surface live",
+        "there); the Bun thread only waits, bounded, for the creation",
+        "reply. The window's events stream opens with the window - pull",
+        "it through [`window_events`]."
+      ],
+      "params": [
+        {
+          "name": "config",
+          "ts": "WindowConfig",
+          "abi": "ptr_len"
+        }
+      ],
+      "ret": {
+        "ts": "bigint",
+        "abi": "u64"
+      },
+      "out": "u64"
+    },
+    {
+      "name": "window_events",
+      "export": "bffi_window_events",
+      "docs": [
+        "The handle of the window's events stream: JSON events",
+        "(`resized` / `focused` / `close-denied` / `closed`) pulled",
+        "through the stream API. The stream exists from window creation",
+        "and completes when the window closes."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        }
+      ],
+      "ret": {
+        "ts": "bigint",
+        "abi": "u64"
+      },
+      "out": "u64"
+    },
+    {
+      "name": "window_close",
+      "export": "bffi_window_close",
+      "docs": [
+        "Closes the window behind `handle` (also the title-bar X path,",
+        "minus the veto): the loop thread drops the window and exits when",
+        "it was the last one - then [`window_poll_exit`] flips to `true`.",
+        "The close-veto callback (when bound) is NOT consulted on this",
+        "programmatic close."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_eval",
+      "export": "bffi_window_eval",
+      "docs": [
+        "Evaluates `js` in the window behind `handle` (proxied onto the",
+        "loop thread; fire-and-forget - the script's result stays in the",
+        "page)."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        },
+        {
+          "name": "js",
+          "ts": "string",
+          "abi": "cstring"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_set_title",
+      "export": "bffi_window_set_title",
+      "docs": [
+        "Sets the window title."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        },
+        {
+          "name": "title",
+          "ts": "string",
+          "abi": "cstring"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_set_size",
+      "export": "bffi_window_set_size",
+      "docs": [
+        "Sets the window size (logical pixels)."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        },
+        {
+          "name": "width",
+          "ts": "number",
+          "abi": "u32"
+        },
+        {
+          "name": "height",
+          "ts": "number",
+          "abi": "u32"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_set_resizable",
+      "export": "bffi_window_set_resizable",
+      "docs": [
+        "Sets whether the window is resizable."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        },
+        {
+          "name": "on",
+          "ts": "boolean",
+          "abi": "bool"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_set_decorations",
+      "export": "bffi_window_set_decorations",
+      "docs": [
+        "Sets whether the window has decorations."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        },
+        {
+          "name": "on",
+          "ts": "boolean",
+          "abi": "bool"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_set_always_on_top",
+      "export": "bffi_window_set_always_on_top",
+      "docs": [
+        "Sets whether the window is always on top."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        },
+        {
+          "name": "on",
+          "ts": "boolean",
+          "abi": "bool"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_set_visible",
+      "export": "bffi_window_set_visible",
+      "docs": [
+        "Shows or hides the window."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        },
+        {
+          "name": "on",
+          "ts": "boolean",
+          "abi": "bool"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_focus",
+      "export": "bffi_window_focus",
+      "docs": [
+        "Gives the window keyboard focus."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_maximize",
+      "export": "bffi_window_maximize",
+      "docs": [
+        "Maximizes the window."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_unmaximize",
+      "export": "bffi_window_unmaximize",
+      "docs": [
+        "Restores a maximized window."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_minimize",
+      "export": "bffi_window_minimize",
+      "docs": [
+        "Minimizes the window."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_open_devtools",
+      "export": "bffi_window_open_devtools",
+      "docs": [
+        "Opens the webview devtools of the window."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_bind_ipc",
+      "export": "bffi_window_bind_ipc",
+      "docs": [
+        "Wires the IPC roundtrip of the window behind `handle` to a JS",
+        "handler: `ipc` is a JS-BOUND callback handle with the signature",
+        "`unit(str)` - the request body arrives as the `cstring`",
+        "argument; the handler answers through [`window_ipc_reply`]."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        },
+        {
+          "name": "ipc",
+          "ts": "bigint",
+          "abi": "u64"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_ipc_reply",
+      "export": "bffi_window_ipc_reply",
+      "docs": [
+        "The IPC message box, JS side: stores the reply JSON (embedded",
+        "into the resolve script verbatim, so it MUST be valid JSON).",
+        "Called by the bound callback before it returns."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        },
+        {
+          "name": "reply",
+          "ts": "string",
+          "abi": "cstring"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_bind_close",
+      "export": "bffi_window_bind_close",
+      "docs": [
+        "Wires the close-veto check of the window behind `handle` to a JS",
+        "callback: `veto` is a JS-BOUND callback handle with the",
+        "signature `bool(str)`. On a title-bar close request the loop",
+        "thread passes the event JSON and waits (up to 10s): the callback",
+        "returns `true` to ALLOW the close, `false` to deny it",
+        "(a `close-denied` event is pushed). Any error or timeout",
+        "FAILS OPEN (the close proceeds) - a hung backend must not make",
+        "a window unclosable."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        },
+        {
+          "name": "veto",
+          "ts": "bigint",
+          "abi": "u64"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_poll_exit",
+      "export": "bffi_window_poll_exit",
+      "docs": [
+        "Whether the loop thread has finished (after [`app_quit`], or a",
+        "loop-thread crash)."
+      ],
+      "params": [],
+      "ret": {
+        "ts": "boolean",
+        "abi": "bool"
+      },
+      "out": "bool"
+    },
+    {
+      "name": "app_quit",
+      "export": "bffi_app_quit",
+      "docs": [
+        "Exits the loop thread explicitly (the app shell decision): the",
+        "process is done with native windows afterwards - a later",
+        "[`window_open`] reports `LoopNotRunning`. Idempotent."
+      ],
+      "params": [],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "loop_pump",
+      "export": "bffi_loop_pump",
+      "docs": [
+        "The non-blocking drain the JS side calls while native threads",
+        "wait (`pumpUntil` from the npm side): the marshalled callback",
+        "invocation executes here, on the bound JS thread."
+      ],
+      "params": [],
+      "ret": {
+        "ts": "bigint",
+        "abi": "u64"
+      },
+      "out": "u64"
+    }
+  ],
+  "classes": [],
+  "records": [
+    {
+      "name": "WindowConfig",
+      "docs": [
+        "The open request: everything optional (`None` rides the",
+        "`TAG_UNIT` wire byte and arrives as `null` on the JS side).",
+        "Exactly one of `url`/`html` should be set; `html` wins if both",
+        "are (wry ignores `url` when `html` is present). Sizes and",
+        "positions are LOGICAL pixels. Without `x`/`y` the OS picks the",
+        "position."
+      ],
+      "fields": [
+        {
+          "name": "url",
+          "docs": [
+            "The URL to load."
+          ],
+          "ts": "string | null"
+        },
+        {
+          "name": "html",
+          "docs": [
+            "The inline HTML to load (overrides `url`)."
+          ],
+          "ts": "string | null"
+        },
+        {
+          "name": "title",
+          "docs": [
+            "The window title (`\"bunframe\"` when `None`)."
+          ],
+          "ts": "string | null"
+        },
+        {
+          "name": "width",
+          "docs": [
+            "The window width (logical px; `1024` when `None`)."
+          ],
+          "ts": "number | null"
+        },
+        {
+          "name": "height",
+          "docs": [
+            "The window height (logical px; `768` when `None`)."
+          ],
+          "ts": "number | null"
+        },
+        {
+          "name": "min_width",
+          "docs": [
+            "The minimum width (logical px)."
+          ],
+          "ts": "number | null"
+        },
+        {
+          "name": "min_height",
+          "docs": [
+            "The minimum height (logical px)."
+          ],
+          "ts": "number | null"
+        },
+        {
+          "name": "resizable",
+          "docs": [
+            "Whether the window is resizable (`true` when `None`)."
+          ],
+          "ts": "boolean | null"
+        },
+        {
+          "name": "decorations",
+          "docs": [
+            "Whether the window has decorations (`true` when `None`)."
+          ],
+          "ts": "boolean | null"
+        },
+        {
+          "name": "transparent",
+          "docs": [
+            "Whether the window/webview background is transparent."
+          ],
+          "ts": "boolean | null"
+        },
+        {
+          "name": "maximized",
+          "docs": [
+            "Whether the window opens maximized."
+          ],
+          "ts": "boolean | null"
+        },
+        {
+          "name": "visible",
+          "docs": [
+            "Whether the window is visible on creation (`true` when",
+            "`None`)."
+          ],
+          "ts": "boolean | null"
+        },
+        {
+          "name": "x",
+          "docs": [
+            "The window position, logical x."
+          ],
+          "ts": "number | null"
+        },
+        {
+          "name": "y",
+          "docs": [
+            "The window position, logical y."
+          ],
+          "ts": "number | null"
+        },
+        {
+          "name": "devtools",
+          "docs": [
+            "Whether devtools are enabled."
+          ],
+          "ts": "boolean | null"
+        },
+        {
+          "name": "always_on_top",
+          "docs": [
+            "Whether the window is always on top."
+          ],
+          "ts": "boolean | null"
+        },
+        {
+          "name": "skip_taskbar",
+          "docs": [
+            "Whether the window is hidden from the taskbar (Windows)."
+          ],
+          "ts": "boolean | null"
+        }
+      ]
+    }
+  ],
+  "enums": [],
+  "errors": [
+    {
+      "name": "BunframeError",
+      "docs": [
+        "The domain error of the crate (the typed errors table in",
+        "[`module_def`]; codes `0x1001..`)."
+      ],
+      "variants": [
+        {
+          "name": "InvalidHandle",
+          "docs": [
+            "The handle is null, stale, or belongs to a closed window."
+          ],
+          "code": "0x1001",
+          "fields": []
+        },
+        {
+          "name": "LoopNotRunning",
+          "docs": [
+            "The loop thread is not running (it stopped or never started)."
+          ],
+          "code": "0x1002",
+          "fields": []
+        },
+        {
+          "name": "CreateFailed",
+          "docs": [
+            "The window/webview creation failed on the loop thread."
+          ],
+          "code": "0x1003",
+          "fields": [
+            {
+              "name": "message",
+              "docs": [
+                "The failure message."
+              ],
+              "ts": "string"
+            }
+          ]
+        },
+        {
+          "name": "OperationFailed",
+          "docs": [
+            "A window operation failed on the loop thread."
+          ],
+          "code": "0x1004",
+          "fields": [
+            {
+              "name": "message",
+              "docs": [
+                "The failure message."
+              ],
+              "ts": "string"
+            }
+          ]
+        },
+        {
+          "name": "InvalidCallback",
+          "docs": [
+            "A bound callback handle is null or has the wrong signature."
+          ],
+          "code": "0x1005",
+          "fields": [
+            {
+              "name": "message",
+              "docs": [
+                "The reason the handle was rejected."
+              ],
+              "ts": "string"
+            }
+          ]
+        },
+        {
+          "name": "EventsUnavailable",
+          "docs": [
+            "The events stream of the window is not available."
+          ],
+          "code": "0x1006",
+          "fields": []
+        }
+      ]
+    }
+  ]
+}

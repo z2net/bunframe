@@ -1,0 +1,17 @@
+{
+  "name": "bunframe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A desktop application shell for Bun: native windows via wry driven entirely from TypeScript, through the bffi binding.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@z2net/bffi": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2"
+  }
+}

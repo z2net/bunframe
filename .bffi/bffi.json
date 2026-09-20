@@ -1,0 +1,22 @@
+{
+  "bffi": 1,
+  "version": "0.1.0",
+  "module": "bunframe",
+  "debug": false,
+  "crate": {
+    "dir": ".",
+    "name": "bunframe-core",
+    "binary": "bunframe_core"
+  },
+  "features": {
+    "runtime": true,
+    "callbacks": true,
+    "stream": true
+  },
+  "generate": {
+    "apiGen": true,
+    "outFile": "api.gen.ts"
+  },
+  "files": ["bffi.api.json", "api.gen.ts"],
+  "libraryPath": null
+}
