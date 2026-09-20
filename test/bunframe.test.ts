@@ -35,7 +35,7 @@ import {
   bindJsCallback,
   type CbValue,
 } from "@z2net/bffi";
-import { createApiFromJson, moduleJson, type Api } from "../.bffi/api.gen.ts";
+import { moduleJson, type Api } from "../.bffi/api.gen.ts";
 
 const E2E = process.env.BFFI_E2E === "1";
 const maybeTest = test.skipIf(!E2E);
@@ -46,10 +46,6 @@ if (found === undefined) {
 }
 const ROOT = found;
 const CONFIG = await loadConfigFile(ROOT);
-
-const CDYLIB = `E:/@z2net/bunframe/target/release/bunframe_core.${
-  process.platform === "win32" ? "dll" : process.platform === "darwin" ? "dylib" : "so"
-}`;
 
 const RAW = {
   bffi_stream_next: { args: ["u64", "u32", "ptr"], returns: "u32" },
@@ -159,18 +155,6 @@ async function waitForEvent(
     await Bun.sleep(10);
   }
   throw new Error(`the "${type}" event never arrived; drained: ${JSON.stringify(drained)}`);
-}
-
-/** Awaits `promise` while pumping the loop, with a hard deadline
- * so a broken bridge fails instead of hanging. */
-function withPump<T>(promise: Promise<T>, deadlineMs = 30_000): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error("the pump deadline expired")), deadlineMs);
-  });
-  return Promise.race([pumpUntil(promise, () => api.loop_pump()), deadline]).finally(() => {
-    clearTimeout(timer);
-  });
 }
 
 describe("bunframe core e2e", () => {
@@ -317,18 +301,18 @@ describe("bunframe core e2e", () => {
         }),
       );
 
-      let received: string | undefined;
+      // The handler MUST NOT throw: every message gets a reply,
+      // so the loop-thread invoke_wait always returns promptly.
+      const { promise: answered, resolve: markAnswered } = Promise.withResolvers<string>();
       const seen: string[] = [];
-      // The handler MUST NOT throw: every message gets a reply, so
-      // the loop-thread invoke_wait always returns promptly.
       const handler = new JSCallback(
         (body: string) => {
           seen.push(body);
           if (body === "page-loaded") {
             return;
           }
-          received = body;
           api.window_ipc_reply(handle, '{"pong":true}');
+          markAnswered(body);
         },
         { args: ["cstring"], returns: "void" },
       );
@@ -354,14 +338,14 @@ describe("bunframe core e2e", () => {
       // the loop-thread handler parks on invoke_wait until THIS
       // thread pumps and the bound callback answers.
       api.window_eval(handle, `window.__bffiCall("ping", {})`);
-      const deadline = Date.now() + 15_000;
-      while (received === undefined && Date.now() < deadline) {
-        api.loop_pump();
-        await Bun.sleep(5);
-      }
+      const deadline = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("the IPC roundtrip never completed")), 15_000);
+      });
+      await Promise.race([pumpUntil(answered, () => api.loop_pump()), deadline]);
       expect(seen.length).toBeGreaterThan(0);
-      expect(received).toBeDefined();
-      expect(JSON.parse(received ?? "{}")).toEqual({ method: "ping", args: {} });
+
+      expect(seen.length).toBeGreaterThan(0);
+      expect(JSON.parse(await answered)).toEqual({ method: "ping", args: {} });
 
       sym("bffi_callback_revoke")(ipcHandle);
       handler.close();

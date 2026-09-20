@@ -1,23 +1,43 @@
 # ===== Rust =====
+# `target` at any depth: the root target/ and any nested one.
 target/
 **/*.rs.bk
 
 # ===== Bun / JS =====
 node_modules/
 .bun/
+.bun-cache/
 *.tsbuildinfo
 *.log
 
 # ===== OS =====
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 Desktop.ini
 
-# ===== Editors =====
+# ===== Editors / IDEs =====
 .idea/
 *.swp
+*.swo
+*~
+
+# ===== VS Code (keep shared configs, ignore personal) =====
 .vscode/*
+!.vscode/settings.json
 !.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# ===== Zed (keep shared, ignore personal) =====
+.zed/*
+!.zed/settings.json
+!.zed/tasks.json
+!.zed/debug.json
 
 # ===== Personal AI / agent tooling (NEVER commit) =====
 .grok/
@@ -28,10 +48,34 @@ Desktop.ini
 .hermes/
 .mcp/
 .cursor/
+.aider*
+.continue/
+.windsurf/
+.firecrawl/
+.agent/
+.agents/
+.specs/
+.memory/
+.local/
 .mimosa/
 
-# ===== Secrets =====
+# ===== Secrets & env =====
 .env
 .env.*
+!.env.example
+!.env.sample
+secrets/
 *.pem
 *.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+
+# ===== Test / temp =====
+tmp/
+*.tmp
+
+# ===== Patch debris =====
+*.orig
+*.rej

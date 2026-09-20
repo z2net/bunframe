@@ -1,0 +1,21 @@
+# Lefthook git hooks (mirrors the bffi-rs setup).
+# Install: bun install (the postinstall script runs `lefthook install`).
+
+pre-commit:
+  commands:
+    cargo-fmt:
+      run: cargo fmt --check
+    clippy:
+      run: cargo clippy --all-targets -- -D warnings
+    typecheck:
+      run: bun x tsc --noEmit
+
+commit-msg:
+  commands:
+    conventional-commit:
+      run: sh scripts/commit-msg.sh {1}
+
+pre-push:
+  commands:
+    tests:
+      run: cargo test --workspace
