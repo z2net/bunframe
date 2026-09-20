@@ -1,0 +1,27 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": null,
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.formatOnSave": true
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "rust-analyzer.linkedProjects": ["Cargo.toml"],
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.arguments": ["--all-targets"],
+  "files.associations": {
+    "*.bffi.json": "json"
+  },
+  "files.exclude": {
+    "**/target": true
+  },
+  "search.exclude": {
+    "**/target": true,
+    "**/node_modules": true
+  }
+}

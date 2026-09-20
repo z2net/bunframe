@@ -1,0 +1,21 @@
+[
+  {
+    "label": "Rust: Debug bunframe-core tests",
+    "adapter": "CodeLLDB",
+    "request": "launch",
+    "program": "$ZED_WORKTREE_ROOT/target/debug/deps/bunframe_core-*.exe",
+    "sourceLanguages": ["rust"]
+  },
+
+  // --- Bun: launch with debugger -----------------------------
+  {
+    "label": "Bun: debug e2e",
+    "adapter": "JavaScript",
+    "request": "launch",
+    "program": "$ZED_WORKTREE_ROOT/node_modules/.bin/bun",
+    "args": ["test"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "env": { "BFFI_E2E": "1" },
+    "stopOnEntry": false
+  }
+]

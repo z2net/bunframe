@@ -1,0 +1,47 @@
+{
+  "version": "0.2.0",
+  "tasks": [
+    {
+      "label": "cargo build (release)",
+      "type": "shell",
+      "command": "cargo build --release",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "cargo test",
+      "type": "shell",
+      "command": "cargo test",
+      "group": "test",
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "bun run ci",
+      "type": "shell",
+      "command": "bun run ci",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "bun run lint",
+      "type": "shell",
+      "command": "bun run lint",
+      "problemMatcher": []
+    },
+    {
+      "label": "bun run typecheck",
+      "type": "shell",
+      "command": "bun run typecheck",
+      "problemMatcher": "$tsc"
+    },
+    {
+      "label": "bun e2e (REAL windows)",
+      "type": "shell",
+      "command": "bun run e2e",
+      "problemMatcher": []
+    }
+  ]
+}

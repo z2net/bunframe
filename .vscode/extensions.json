@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "rust-lang.rust-analyzer",
+    "oven.bun-vscode",
+    "vadimcn.vscode-lldb",
+    "dbaeumer.vscode-eslint",
+    "usernamehw.errorlens",
+    "tamasfe.even-better-toml"
+  ]
+}

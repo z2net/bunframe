@@ -1,0 +1,41 @@
+[
+  {
+    "label": "full check (CI parity)",
+    "command": "bun",
+    "args": ["run", "ci"],
+    "tags": ["ci"]
+  },
+  {
+    "label": "build (release cdylib)",
+    "command": "cargo",
+    "args": ["build", "--release"],
+    "tags": ["build"]
+  },
+  {
+    "label": "cargo test",
+    "command": "cargo",
+    "args": ["test"],
+    "tags": ["test"]
+  },
+  {
+    "label": "bun test (unit, skips windows)",
+    "command": "bun",
+    "args": ["test"],
+    "tags": ["test"]
+  },
+  {
+    "label": "bun e2e (REAL windows)",
+    "command": "bun",
+    "args": ["run", "e2e"],
+    "tags": ["test", "e2e"]
+  },
+
+  // --- Debug helpers (launch via tasks, not DAP) -------------
+  {
+    "label": "bun: run entry",
+    "command": "bun",
+    "args": ["run", "test"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "tags": ["run"]
+  }
+]

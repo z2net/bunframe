@@ -1,0 +1,68 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    // --- Rust: bin ----------------------------------------------
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Rust: Debug bunframe-core",
+      "cargo": {
+        "args": ["build", "--workspace"],
+        "problemMatcher": "$rustc"
+      },
+      "sourceLanguages": ["rust"],
+      "cwd": "${workspaceFolder}",
+      "stopOnEntry": false,
+      "terminal": "integrated"
+    },
+
+    // --- Rust: integration tests --------------------------------
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Rust: Debug all tests",
+      "cargo": {
+        "args": ["test", "--workspace", "--no-run"],
+        "problemMatcher": "$rustc"
+      },
+      "args": ["--nocapture", "--test-threads=1"],
+      "sourceLanguages": ["rust"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "RUST_BACKTRACE": "full"
+      }
+    },
+
+    // --- Rust: test specific crate ------------------------------
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Rust: Debug tests (bunframe-core)",
+      "cargo": {
+        "args": ["test", "--no-run", "-p", "bunframe-core"],
+        "problemMatcher": "$rustc"
+      },
+      "args": ["--nocapture"],
+      "sourceLanguages": ["rust"],
+      "cwd": "${workspaceFolder}"
+    },
+
+    // --- Bun: e2e with the debugger ------------------------------
+    {
+      "type": "bun",
+      "request": "launch",
+      "name": "Bun: Debug e2e (REAL windows)",
+      "program": "${workspaceFolder}/test/bunframe.test.ts",
+      "cwd": "${workspaceFolder}",
+      "runtime": "bun",
+      "runtimeArgs": [],
+      "env": {
+        "BFFI_E2E": "1"
+      },
+      "strictEnv": false,
+      "watchMode": false,
+      "stopOnEntry": false,
+      "noDebug": false
+    }
+  ]
+}
