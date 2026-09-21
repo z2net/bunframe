@@ -49,7 +49,9 @@ async function main(): Promise<number> {
   const src = flag(args, "src") ?? `target/release/${DEFAULT_BINARY}.${platform.ext}`;
   const outDir = flag(args, "out") ?? "platform";
 
-  const root = JSON.parse(await Bun.file("package.json").text()) as {
+  const root = JSON.parse(
+    await Bun.file("packages/bunframe/package.json").text(),
+  ) as {
     version: string;
     license?: string;
   };

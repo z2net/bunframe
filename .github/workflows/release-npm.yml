@@ -89,12 +89,12 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       # Pin the platform binary as an optionalDependency at the
-      # release version - the loader resolves it on a clean machine
-      # (no Rust toolchain, no local build).
+      # package's own version - the packer reads the same manifest,
+      # so the two always ship in lockstep.
       - name: Pin the platform binary dependency
         working-directory: packages/bunframe
         run: |
-          VERSION=$(node -p "require('../../package.json').version")
+          VERSION=$(node -p "require('./package.json').version")
           npm pkg set "optionalDependencies.@z2net/bunframe-core-win-x64=${VERSION}"
 
       - name: Publish @z2net/bunframe (skip if the version exists)
