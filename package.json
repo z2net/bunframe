@@ -1,6 +1,6 @@
 {
   "name": "bunframe",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
   "description": "A desktop application shell for Bun: native windows via wry driven entirely from TypeScript, through the bffi binding.",
   "license": "MIT",
