@@ -87,12 +87,15 @@ bunframe/
 ├── package.json            # scripts + pinned dev deps + workspaces
 ├── lefthook.yml            # git hooks (fmt/clippy/typecheck, commit-msg)
 ├── AGENTS.md               # this file
-└── packages/               # the npm family (the M2 workspace split)
-    ├── schema/             # @bunframe/schema: RPC types + s descriptors
-    ├── core/               # @bunframe/core: the native-core loader
-    ├── app/                # @bunframe/app: createApp/Window/run/handle
-    ├── view/               # @bunframe/view: the page-side RPC shim
-    └── cli/                # @bunframe/cli: dev / build / init (+ template/)
+└── packages/
+    └── bunframe/           # @z2net/bunframe - THE package (one package +
+                            # platform binaries):
+                            #   .        -> createApp/Window/loader (bun side)
+                            #   ./schema -> s descriptors + defineSchema
+                            #   ./view   -> the page-side RPC shim (zero-dep)
+                            #   ./cli    -> dev / build / init (+ template/)
+                            # internal aliases live in package.json "imports"
+                            # (#schema, #core, #app/*, #cli/*) - no ../..
 ```
 
 ---
@@ -237,5 +240,5 @@ footer. Note: `bench` is NOT an allowed type - benches are `test:`.
     inference helpers are frozen, do not drift them. Bun-side RPC
     handlers are SYNC in v0.1.0 (one `invoke_wait` per window at a
     time); validation is Standard Schema, always on, bun side only
-    (`@bunframe/view` stays zero-dep). `app.quit()` is terminal -
+    (`@z2net/bunframe-view` stays zero-dep). `app.quit()` is terminal -
     the loop never respawns.

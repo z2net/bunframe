@@ -1,0 +1,31 @@
+{
+  "name": "@z2net/bunframe",
+  "version": "0.1.0",
+  "description": "The desktop application shell for Bun: native wry windows, typed schema-first RPC and the CLI - one package, platform binaries resolved automatically.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "bunframe": "./src/cli/main.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./view": "./src/view.ts",
+    "./cli": "./src/cli/index.ts"
+  },
+  "imports": {
+    "#schema": "./src/schema/index.ts",
+    "#schema/*": "./src/schema/*",
+    "#core": "./src/core/index.ts",
+    "#core/*": "./src/core/*",
+    "#app/*": "./src/app/*",
+    "#view": "./src/view.ts",
+    "#cli": "./src/cli/index.ts",
+    "#cli/*": "./src/cli/*",
+    "#template/*": "./src/cli/template/*"
+  },
+  "dependencies": {
+    "@z2net/bffi": "^0.2.1"
+  },
+  "private": true
+}
