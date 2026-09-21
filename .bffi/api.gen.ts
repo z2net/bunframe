@@ -12,17 +12,20 @@ import {
   type ModuleJson,
   type TsOf,
   buildDeclarations,
+  decodeAt,
   encodeValue,
   jsToWire,
+  makeReadBuffer,
   makeTakeError,
   tablesOf,
+  wireToJs,
 } from "@z2net/bffi";
 
 const moduleJson = {
   "bffi": 1,
   "module": "bunframe",
   "abiVersion": 1,
-  "exportsHash": "4868820008953266211",
+  "exportsHash": "1187798650473324034",
   "functions": [
     {
       "name": "window_open",
@@ -30,12 +33,12 @@ const moduleJson = {
       "docs": [
         "Opens a window described by `config` (inline `html` or a `url`,",
         "title, size, min size, decorations, transparency, position,",
-        "maximized/visible/always-on-top/skip-taskbar, devtools) and",
-        "returns its opaque handle. The first call spawns the dedicated",
-        "loop thread (winit event loop + window + wry surface live",
-        "there); the Bun thread only waits, bounded, for the creation",
-        "reply. The window's events stream opens with the window - pull",
-        "it through [`window_events`]."
+        "maximized/visible/always-on-top/skip-taskbar, devtools, `bf`",
+        "asset serving) and returns its opaque handle. The first call",
+        "spawns the dedicated loop thread (winit event loop + window +",
+        "wry surface live there); the Bun thread only waits, bounded, for",
+        "the creation reply. The window's events stream opens with the",
+        "window - pull it through [`window_events`]."
       ],
       "params": [
         {
@@ -147,6 +150,86 @@ const moduleJson = {
       "export": "bffi_window_set_size",
       "docs": [
         "Sets the window size (logical pixels)."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        },
+        {
+          "name": "width",
+          "ts": "number",
+          "abi": "u32"
+        },
+        {
+          "name": "height",
+          "ts": "number",
+          "abi": "u32"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_set_position",
+      "export": "bffi_window_set_position",
+      "docs": [
+        "Sets the window position (logical pixels - the same space as the",
+        "`x`/`y` open config)."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        },
+        {
+          "name": "x",
+          "ts": "number",
+          "abi": "i32"
+        },
+        {
+          "name": "y",
+          "ts": "number",
+          "abi": "i32"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_center",
+      "export": "bffi_window_center",
+      "docs": [
+        "Centers the window on its current monitor. Best-effort: window",
+        "ops are fire-and-forget, so a window without a monitor simply",
+        "stays put (the center math is PHYSICAL and manual - winit 0.30",
+        "has no `Window::center`)."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        }
+      ],
+      "ret": {
+        "ts": "void",
+        "abi": "void"
+      }
+    },
+    {
+      "name": "window_set_min_size",
+      "export": "bffi_window_set_min_size",
+      "docs": [
+        "Sets the minimum window size (logical pixels); `0/0` clears the",
+        "constraint (the ABI has no Option params), any other pair clamps",
+        "up to at least 1x1."
       ],
       "params": [
         {
@@ -335,6 +418,86 @@ const moduleJson = {
       }
     },
     {
+      "name": "window_is_maximized",
+      "export": "bffi_window_is_maximized",
+      "docs": [
+        "Whether the window behind `handle` is currently maximized",
+        "(queried on the loop thread; the Bun thread waits, bounded, for",
+        "the answer)."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        }
+      ],
+      "ret": {
+        "ts": "boolean",
+        "abi": "bool"
+      },
+      "out": "bool"
+    },
+    {
+      "name": "window_is_visible",
+      "export": "bffi_window_is_visible",
+      "docs": [
+        "Whether the window behind `handle` is currently visible."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        }
+      ],
+      "ret": {
+        "ts": "boolean",
+        "abi": "bool"
+      },
+      "out": "bool"
+    },
+    {
+      "name": "window_inner_size",
+      "export": "bffi_window_inner_size",
+      "docs": [
+        "The inner (webview viewport) size of the window behind",
+        "`handle`, in PHYSICAL pixels."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        }
+      ],
+      "ret": {
+        "ts": "WindowSize",
+        "abi": "buffer"
+      },
+      "out": "handle"
+    },
+    {
+      "name": "window_position",
+      "export": "bffi_window_position",
+      "docs": [
+        "The outer-frame position of the window behind `handle`, in",
+        "PHYSICAL pixels."
+      ],
+      "params": [
+        {
+          "name": "handle",
+          "ts": "bigint",
+          "abi": "u64"
+        }
+      ],
+      "ret": {
+        "ts": "WindowPosition",
+        "abi": "buffer"
+      },
+      "out": "handle"
+    },
+    {
       "name": "window_open_devtools",
       "export": "bffi_window_open_devtools",
       "docs": [
@@ -359,7 +522,13 @@ const moduleJson = {
         "Wires the IPC roundtrip of the window behind `handle` to a JS",
         "handler: `ipc` is a JS-BOUND callback handle with the signature",
         "`unit(str)` - the request body arrives as the `cstring`",
-        "argument; the handler answers through [`window_ipc_reply`]."
+        "argument; the handler answers through [`window_ipc_reply`].",
+        "",
+        "The first bind spawns the window's IPC worker thread: page",
+        "messages queue on it, so the loop thread never parks inside the",
+        "wry ipc handler and calls can pipeline. Rebinding keeps the",
+        "worker and just swaps the callback handle (read fresh per",
+        "message)."
       ],
       "params": [
         {
@@ -609,6 +778,65 @@ const moduleJson = {
             "Whether the window is hidden from the taskbar (Windows)."
           ],
           "ts": "boolean | null"
+        },
+        {
+          "name": "asset_root",
+          "docs": [
+            "The asset directory served to this window through the `bf`",
+            "custom protocol (set at creation; wry binds custom protocols",
+            "at webview build time). The page loads `bf://localhost/<rel",
+            "-path>` - wry maps it to `http://bf.localhost/<rel-path>` on",
+            "Windows, so the page sees `http://bf.localhost/...` origins:",
+            "spell URLs `bf://localhost/...` in app code. `/` serves",
+            "`index.html`."
+          ],
+          "ts": "string | null"
+        }
+      ]
+    },
+    {
+      "name": "WindowSize",
+      "docs": [
+        "The inner (webview viewport) size of a window, in PHYSICAL",
+        "pixels (the [`window_inner_size`] reply)."
+      ],
+      "fields": [
+        {
+          "name": "width",
+          "docs": [
+            "Width, physical pixels."
+          ],
+          "ts": "number"
+        },
+        {
+          "name": "height",
+          "docs": [
+            "Height, physical pixels."
+          ],
+          "ts": "number"
+        }
+      ]
+    },
+    {
+      "name": "WindowPosition",
+      "docs": [
+        "The outer-frame position of a window, in PHYSICAL pixels (the",
+        "[`window_position`] reply)."
+      ],
+      "fields": [
+        {
+          "name": "x",
+          "docs": [
+            "X, physical pixels."
+          ],
+          "ts": "number"
+        },
+        {
+          "name": "y",
+          "docs": [
+            "Y, physical pixels."
+          ],
+          "ts": "number"
         }
       ]
     }
@@ -706,6 +934,7 @@ const moduleJson = {
 export function createApiFromJson(libraryPath: string): ApiOf<typeof moduleJson> {
   const lib: FfiLib = dlopen(libraryPath, buildDeclarations(moduleJson)).symbols as FfiLib;
   const takeError = makeTakeError(lib);
+  const readBuffer = makeReadBuffer(lib);
   const sym = (name: string): FfiSymbol => {
     const found = lib[name];
     if (typeof found !== "function") {
@@ -789,6 +1018,39 @@ export function createApiFromJson(libraryPath: string): ApiOf<typeof moduleJson>
     if (status !== ErrorCode.Ok) {
       const error = takeError(status);
       throw error ?? new Error("bffi_window_set_size failed: " + String(status));
+    }
+  };
+  const sym_window_set_position = sym("bffi_window_set_position");
+  const fn_window_set_position = function (a0: TsOf<"bigint", typeof moduleJson>, a1: TsOf<"number", typeof moduleJson>, a2: TsOf<"number", typeof moduleJson>): void {
+    if (arguments.length !== 3) {
+      throw new Error("window_set_position: expected 3 argument(s), got " + arguments.length);
+    }
+    const status = Number(sym_window_set_position(a0, a1, a2));
+    if (status !== ErrorCode.Ok) {
+      const error = takeError(status);
+      throw error ?? new Error("bffi_window_set_position failed: " + String(status));
+    }
+  };
+  const sym_window_center = sym("bffi_window_center");
+  const fn_window_center = function (a0: TsOf<"bigint", typeof moduleJson>): void {
+    if (arguments.length !== 1) {
+      throw new Error("window_center: expected 1 argument(s), got " + arguments.length);
+    }
+    const status = Number(sym_window_center(a0));
+    if (status !== ErrorCode.Ok) {
+      const error = takeError(status);
+      throw error ?? new Error("bffi_window_center failed: " + String(status));
+    }
+  };
+  const sym_window_set_min_size = sym("bffi_window_set_min_size");
+  const fn_window_set_min_size = function (a0: TsOf<"bigint", typeof moduleJson>, a1: TsOf<"number", typeof moduleJson>, a2: TsOf<"number", typeof moduleJson>): void {
+    if (arguments.length !== 3) {
+      throw new Error("window_set_min_size: expected 3 argument(s), got " + arguments.length);
+    }
+    const status = Number(sym_window_set_min_size(a0, a1, a2));
+    if (status !== ErrorCode.Ok) {
+      const error = takeError(status);
+      throw error ?? new Error("bffi_window_set_min_size failed: " + String(status));
     }
   };
   const sym_window_set_resizable = sym("bffi_window_set_resizable");
@@ -891,6 +1153,66 @@ export function createApiFromJson(libraryPath: string): ApiOf<typeof moduleJson>
       throw error ?? new Error("bffi_window_minimize failed: " + String(status));
     }
   };
+  const out_window_is_maximized = new Uint8Array(1);
+  const sym_window_is_maximized = sym("bffi_window_is_maximized");
+  const fn_window_is_maximized = function (a0: TsOf<"bigint", typeof moduleJson>): TsOf<"boolean", typeof moduleJson> {
+    if (arguments.length !== 1) {
+      throw new Error("window_is_maximized: expected 1 argument(s), got " + arguments.length);
+    }
+    const status = Number(sym_window_is_maximized(a0, out_window_is_maximized));
+    if (status !== ErrorCode.Ok) {
+      const error = takeError(status);
+      throw error ?? new Error("bffi_window_is_maximized failed: " + String(status));
+    }
+    return (out_window_is_maximized[0] ?? 0) !== 0;
+  };
+  const out_window_is_visible = new Uint8Array(1);
+  const sym_window_is_visible = sym("bffi_window_is_visible");
+  const fn_window_is_visible = function (a0: TsOf<"bigint", typeof moduleJson>): TsOf<"boolean", typeof moduleJson> {
+    if (arguments.length !== 1) {
+      throw new Error("window_is_visible: expected 1 argument(s), got " + arguments.length);
+    }
+    const status = Number(sym_window_is_visible(a0, out_window_is_visible));
+    if (status !== ErrorCode.Ok) {
+      const error = takeError(status);
+      throw error ?? new Error("bffi_window_is_visible failed: " + String(status));
+    }
+    return (out_window_is_visible[0] ?? 0) !== 0;
+  };
+  const out_window_inner_size = new BigUint64Array(1);
+  const sym_window_inner_size = sym("bffi_window_inner_size");
+  const fn_window_inner_size = function (a0: TsOf<"bigint", typeof moduleJson>): TsOf<"WindowSize", typeof moduleJson> {
+    if (arguments.length !== 1) {
+      throw new Error("window_inner_size: expected 1 argument(s), got " + arguments.length);
+    }
+    const status = Number(sym_window_inner_size(a0, out_window_inner_size));
+    if (status !== ErrorCode.Ok) {
+      const error = takeError(status);
+      throw error ?? new Error("bffi_window_inner_size failed: " + String(status));
+    }
+    if (typeof ((out_window_inner_size[0] ?? 0n)) !== "bigint") {
+      throw new TypeError("window_inner_size: expected a buffer handle");
+    }
+    const bytes_window_inner_size = readBuffer((out_window_inner_size[0] ?? 0n));
+    return wireToJs(tables, "WindowSize", decodeAt(bytes_window_inner_size, 0).value, "window_inner_size()") as TsOf<"WindowSize", typeof moduleJson>;
+  };
+  const out_window_position = new BigUint64Array(1);
+  const sym_window_position = sym("bffi_window_position");
+  const fn_window_position = function (a0: TsOf<"bigint", typeof moduleJson>): TsOf<"WindowPosition", typeof moduleJson> {
+    if (arguments.length !== 1) {
+      throw new Error("window_position: expected 1 argument(s), got " + arguments.length);
+    }
+    const status = Number(sym_window_position(a0, out_window_position));
+    if (status !== ErrorCode.Ok) {
+      const error = takeError(status);
+      throw error ?? new Error("bffi_window_position failed: " + String(status));
+    }
+    if (typeof ((out_window_position[0] ?? 0n)) !== "bigint") {
+      throw new TypeError("window_position: expected a buffer handle");
+    }
+    const bytes_window_position = readBuffer((out_window_position[0] ?? 0n));
+    return wireToJs(tables, "WindowPosition", decodeAt(bytes_window_position, 0).value, "window_position()") as TsOf<"WindowPosition", typeof moduleJson>;
+  };
   const sym_window_open_devtools = sym("bffi_window_open_devtools");
   const fn_window_open_devtools = function (a0: TsOf<"bigint", typeof moduleJson>): void {
     if (arguments.length !== 1) {
@@ -979,6 +1301,9 @@ export function createApiFromJson(libraryPath: string): ApiOf<typeof moduleJson>
     "window_eval": fn_window_eval,
     "window_set_title": fn_window_set_title,
     "window_set_size": fn_window_set_size,
+    "window_set_position": fn_window_set_position,
+    "window_center": fn_window_center,
+    "window_set_min_size": fn_window_set_min_size,
     "window_set_resizable": fn_window_set_resizable,
     "window_set_decorations": fn_window_set_decorations,
     "window_set_always_on_top": fn_window_set_always_on_top,
@@ -987,6 +1312,10 @@ export function createApiFromJson(libraryPath: string): ApiOf<typeof moduleJson>
     "window_maximize": fn_window_maximize,
     "window_unmaximize": fn_window_unmaximize,
     "window_minimize": fn_window_minimize,
+    "window_is_maximized": fn_window_is_maximized,
+    "window_is_visible": fn_window_is_visible,
+    "window_inner_size": fn_window_inner_size,
+    "window_position": fn_window_position,
     "window_open_devtools": fn_window_open_devtools,
     "window_bind_ipc": fn_window_bind_ipc,
     "window_ipc_reply": fn_window_ipc_reply,
