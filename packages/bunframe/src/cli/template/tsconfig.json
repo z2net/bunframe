@@ -11,9 +11,5 @@
     "verbatimModuleSyntax": true,
     "noUncheckedIndexedAccess": true
   },
-  "include": [
-    "test/**/*.ts",
-    ".bffi/api.gen.ts",
-    "packages/**/*.ts"
-  ]
+  "include": ["src/**/*.ts", "frontend/**/*.ts"]
 }
