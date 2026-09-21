@@ -84,9 +84,15 @@ bunframe/
 │   └── bin/emit_json.rs    # writes .bffi/bffi.api.json
 ├── test/
 │   └── bunframe.test.ts    # BFFI_E2E-gated suite (opens REAL windows)
-├── package.json            # scripts + pinned dev deps
+├── package.json            # scripts + pinned dev deps + workspaces
 ├── lefthook.yml            # git hooks (fmt/clippy/typecheck, commit-msg)
-└── AGENTS.md               # this file
+├── AGENTS.md               # this file
+└── packages/               # the npm family (the M2 workspace split)
+    ├── schema/             # @bunframe/schema: RPC types + s descriptors
+    ├── core/               # @bunframe/core: the native-core loader
+    ├── app/                # @bunframe/app: createApp/Window/run/handle
+    ├── view/               # @bunframe/view: the page-side RPC shim
+    └── cli/                # @bunframe/cli: dev / build / init (+ template/)
 ```
 
 ---
@@ -182,9 +188,22 @@ on a developer machine or a self-hosted runner with a display.
 
 ---
 
-## 6. Commit style
+## 6. Branching, commits and PRs
 
-Conventional Commits (enforced by the commit-msg hook):
+Branch model (see [CONTRIBUTING.md](CONTRIBUTING.md)):
+
+- `main` - stable, releases only, NEVER a direct push.
+- `dev/main` - the integration branch; everything lands via PR.
+- `dev/<topic>` - work branches, cut from `dev/main`, PR-ed into
+  `dev/main`; release PRs are `dev/main` -> `main`.
+- Direct pushes to `main` / `dev/main` are blocked by the pre-push
+  guard (`scripts/pre-push-branch-guard.sh`).
+
+PR titles are Conventional Commits (the squashed-merge subject);
+one topic per PR; the PR template gates (tests + invariants) must be
+checked honestly. Issues use the `.github/ISSUE_TEMPLATE` templates.
+
+Commit style (enforced by the commit-msg hook):
 `feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert(scope): message`.
 Breaking changes: `!` after the type or `BREAKING CHANGE:` in the
 footer. Note: `bench` is NOT an allowed type - benches are `test:`.
@@ -213,3 +232,10 @@ footer. Note: `bench` is NOT an allowed type - benches are `test:`.
    commit (the lefthook pre-push runs `cargo test --workspace`).
 9. Docs that render on registries (crates.io/npm) are frozen at
    publish time - fix them in the repo, ship with the next version.
+10. Framework rules (M2+): the RPC type contract is
+    `packages/schema/src/types.ts` - the envelope, `RpcDef` and the
+    inference helpers are frozen, do not drift them. Bun-side RPC
+    handlers are SYNC in v0.1.0 (one `invoke_wait` per window at a
+    time); validation is Standard Schema, always on, bun side only
+    (`@bunframe/view` stays zero-dep). `app.quit()` is terminal -
+    the loop never respawns.
