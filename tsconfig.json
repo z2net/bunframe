@@ -14,6 +14,7 @@
   "include": [
     "test/**/*.ts",
     ".bffi/api.gen.ts",
-    "packages/**/*.ts"
+    "packages/**/*.ts",
+    "scripts/**/*.ts"
   ]
 }

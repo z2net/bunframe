@@ -4,6 +4,22 @@
   "description": "The desktop application shell for Bun: native wry windows, typed schema-first RPC and the CLI - one package, platform binaries resolved automatically.",
   "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/z2net/bunframe.git",
+    "directory": "packages/bunframe"
+  },
+  "bugs": {
+    "url": "https://github.com/z2net/bunframe/issues",
+    "email": "contact@z2net.com"
+  },
+  "author": {
+    "name": "z2net",
+    "email": "contact@z2net.com"
+  },
+  "engines": {
+    "bun": ">=1.4.2"
+  },
   "bin": {
     "bunframe": "./src/cli/main.ts"
   },
@@ -24,8 +40,14 @@
     "#cli/*": "./src/cli/*",
     "#template/*": "./src/cli/template/*"
   },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@z2net/bffi": "^0.2.1"
-  },
-  "private": true
+  }
 }
