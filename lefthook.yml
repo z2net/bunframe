@@ -19,3 +19,5 @@ pre-push:
   commands:
     tests:
       run: cargo test --workspace
+    branch-guard:
+      run: sh scripts/pre-push-branch-guard.sh
