@@ -5,6 +5,9 @@
   "description": "A desktop application shell for Bun: native windows via wry driven entirely from TypeScript, through the bffi binding.",
   "license": "MIT",
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "packageManager": "bun@1.4.2",
   "engines": {
     "bun": ">=1.4.2"
@@ -17,7 +20,7 @@
     "test": "bun test",
     "test:rust": "cargo test",
     "e2e": "BFFI_E2E=1 bun test",
-    "codegen": "cargo run --release --bin emit-json && bunx @z2net/bffi-cli codegen .bffi/bffi.api.json -o .bffi/api.gen.ts",
+    "codegen": "cargo run --release --bin emit-json && bunx @z2net/bffi-cli codegen .bffi/bffi.api.json -o .bffi/api.gen.ts && bun run scripts/sync-api-gen.ts",
     "ci": "bun run lint && bun run typecheck && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test && bun test"
   },
   "dependencies": {

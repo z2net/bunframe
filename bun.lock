@@ -14,6 +14,16 @@
         "typescript": "7.0.2",
       },
     },
+    "packages/bunframe": {
+      "name": "@z2net/bunframe",
+      "version": "0.1.0",
+      "bin": {
+        "bunframe": "./src/cli/main.ts",
+      },
+      "dependencies": {
+        "@z2net/bffi": "^0.2.1",
+      },
+    },
   },
   "packages": {
     "@oxlint/binding-android-arm-eabi": ["@oxlint/binding-android-arm-eabi@1.81.0", "", { "os": "android", "cpu": "arm" }, "sha512-IcCRsXiedJoJopY6mpZUBEeVFsUrutmrG7dZ87zMuKJlhg70Ora9bBl1WcCxZQtyI10YpnVdEso5oCg7YcfSHw=="],
@@ -99,6 +109,8 @@
     "@typescript/typescript-win32-x64": ["@typescript/typescript-win32-x64@7.0.2", "", { "os": "win32", "cpu": "x64" }, "sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g=="],
 
     "@z2net/bffi": ["@z2net/bffi@0.2.1", "", {}, "sha512-xv9yJ+PFTuxBR9DI5KH4Db6XIilO0/dC1g0HbwhNvHRXuErSy2tBQi+9hCMv7p+by17UpRKerF/AhTR3jVmpBw=="],
+
+    "@z2net/bunframe": ["@z2net/bunframe@workspace:packages/bunframe"],
 
     "bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
 

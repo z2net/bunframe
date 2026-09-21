@@ -1,0 +1,5 @@
+# Hoisted installs: the @types/bun -> bun-types resolution and the
+# workspace links must live at the node_modules root (the isolated
+# linker's store layout breaks tsc module resolution here).
+[install]
+linker = "hoisted"
