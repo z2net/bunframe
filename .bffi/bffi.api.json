@@ -2,7 +2,7 @@
   "bffi": 1,
   "module": "bunframe",
   "abiVersion": 1,
-  "exportsHash": "1187798650473324034",
+  "exportsHash": "8454069739320850434",
   "functions": [
     {
       "name": "window_open",
@@ -204,9 +204,8 @@
       "name": "window_set_min_size",
       "export": "bffi_window_set_min_size",
       "docs": [
-        "Sets the minimum window size (logical pixels); `0/0` clears the",
-        "constraint (the ABI has no Option params), any other pair clamps",
-        "up to at least 1x1."
+        "Sets the minimum window size (logical pixels). `None` leaves the",
+        "axis unconstrained; both `None` clears the constraint entirely."
       ],
       "params": [
         {
@@ -216,13 +215,13 @@
         },
         {
           "name": "width",
-          "ts": "number",
-          "abi": "u32"
+          "ts": "number | null",
+          "abi": "opt_number"
         },
         {
           "name": "height",
-          "ts": "number",
-          "abi": "u32"
+          "ts": "number | null",
+          "abi": "opt_number"
         }
       ],
       "ret": {

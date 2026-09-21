@@ -59,6 +59,14 @@ export class Window {
     this.#call(() => this.#api.window_set_size(this.handle, width, height));
   }
 
+  /** Sets the minimum window size (logical pixels); a missing axis
+   * is unconstrained, both missing clears the constraint. */
+  setMinSize(width?: number | null, height?: number | null): void {
+    this.#call(() =>
+      this.#api.window_set_min_size(this.handle, width ?? null, height ?? null),
+    );
+  }
+
   focus(): void {
     this.#call(() => this.#api.window_focus(this.handle));
   }
