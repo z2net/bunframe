@@ -117,18 +117,18 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "bffi"
-version = "0.2.1"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "242a857b3648b89f9b944845e3fba694915299ef60888c6e0c9ea7fc09d423cb"
+checksum = "0f837bca0e27113724a31c8841b53fd53b5e2993461e4d09d69c8342ee5c3749"
 dependencies = [
  "bffi-macros",
 ]
 
 [[package]]
 name = "bffi-macros"
-version = "0.2.1"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a594fb0fcde10bf1d9d63284c507521eaec8dc53db1ce3e6cde0a2f2b521a92"
+checksum = "4405c2ee078af416ec6e601d77b35f436136c8ec02efe3f8c2488914dd5f91ac"
 dependencies = [
  "proc-macro2",
  "quote",

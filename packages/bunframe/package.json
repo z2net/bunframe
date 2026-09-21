@@ -1,6 +1,6 @@
 {
   "name": "@z2net/bunframe",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The desktop application shell for Bun: native wry windows, typed schema-first RPC and the CLI - one package, platform binaries resolved automatically.",
   "license": "MIT",
   "type": "module",
@@ -48,6 +48,6 @@
     "access": "public"
   },
   "dependencies": {
-    "@z2net/bffi": "^0.2.1"
+    "@z2net/bffi": "^0.2.3"
   }
 }

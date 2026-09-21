@@ -18,7 +18,7 @@ name = "emit-json"
 path = "src/bin/emit_json.rs"
 
 [dependencies]
-bffi = "0.2.1"
+bffi = "0.2.3"
 # Pinned exactly (the wry dev line moves fast): the latest stable pair
 # at the time of writing. wry needs any window implementing
 # `HasWindowHandle`; winit 0.30 is the version wry itself tests

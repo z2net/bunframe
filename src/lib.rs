@@ -333,7 +333,7 @@ enum WindowOp {
     SetSize(u32, u32),
     SetPosition(i32, i32),
     Center,
-    SetMinSize(u32, u32),
+    SetMinSize(Option<u32>, Option<u32>),
     SetResizable(bool),
     SetDecorations(bool),
     SetAlwaysOnTop(bool),
@@ -376,16 +376,15 @@ impl WindowOp {
                 ));
             }
             Self::SetMinSize(width, height) => {
-                // 0/0 clears the constraint (the ABI has no Option
-                // params); anything else clamps up to at least 1x1.
-                if *width == 0 && *height == 0 {
-                    window.set_min_inner_size::<LogicalSize<f64>>(None);
-                } else {
-                    window.set_min_inner_size(Some(LogicalSize::new(
-                        f64::from((*width).max(1)),
-                        f64::from((*height).max(1)),
-                    )));
-                }
+                // None = the axis is unconstrained; both None clears
+                // the constraint entirely.
+                window.set_min_inner_size(match (width, height) {
+                    (None, None) => None,
+                    (width, height) => Some(LogicalSize::new(
+                        f64::from((*width).unwrap_or(0)),
+                        f64::from((*height).unwrap_or(0)),
+                    )),
+                });
             }
             Self::SetResizable(on) => window.set_resizable(*on),
             Self::SetDecorations(on) => window.set_decorations(*on),
@@ -1247,11 +1246,14 @@ pub fn window_center(handle: u64) -> Result<(), BunframeError> {
     send_op(handle, WindowOp::Center)
 }
 
-/// Sets the minimum window size (logical pixels); `0/0` clears the
-/// constraint (the ABI has no Option params), any other pair clamps
-/// up to at least 1x1.
+/// Sets the minimum window size (logical pixels). `None` leaves the
+/// axis unconstrained; both `None` clears the constraint entirely.
 #[bffi]
-pub fn window_set_min_size(handle: u64, width: u32, height: u32) -> Result<(), BunframeError> {
+pub fn window_set_min_size(
+    handle: u64,
+    width: Option<u32>,
+    height: Option<u32>,
+) -> Result<(), BunframeError> {
     send_op(handle, WindowOp::SetMinSize(width, height))
 }
 

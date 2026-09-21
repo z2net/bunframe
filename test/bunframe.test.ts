@@ -456,8 +456,9 @@ describe("bunframe core e2e", () => {
 
       expect(() => api.window_center(handle)).not.toThrow();
       expect(() => api.window_set_min_size(handle, 400, 300)).not.toThrow();
-      // 0/0 clears the constraint.
-      expect(() => api.window_set_min_size(handle, 0, 0)).not.toThrow();
+      // A null axis is unconstrained; both nulls clear the constraint.
+      expect(() => api.window_set_min_size(handle, 400, null)).not.toThrow();
+      expect(() => api.window_set_min_size(handle, null, null)).not.toThrow();
 
       api.window_close(handle);
       await waitForEvent(streamHandle, "closed");
