@@ -1,0 +1,18 @@
+{
+  "name": "my-bunframe-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bunframe dev",
+    "build": "bunframe build",
+    "start": "bun run dist/main.js"
+  },
+  "dependencies": {
+    "@z2net/bunframe": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "typescript": "7.0.2"
+  }
+}

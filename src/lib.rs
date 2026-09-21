@@ -48,8 +48,10 @@ bffi::bffi_stream_abi!();
 
 pub mod module_def;
 
+use std::borrow::Cow;
 use std::collections::HashMap;
-use std::sync::mpsc::{Sender, channel};
+use std::path::Path;
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{
     Arc, Condvar, LazyLock, Mutex, MutexGuard, PoisonError,
     atomic::{AtomicBool, Ordering},
@@ -63,10 +65,11 @@ use bffi::{
 };
 use pollster::block_on;
 use winit::application::ApplicationHandler;
-use winit::dpi::{LogicalPosition, LogicalSize};
+use winit::dpi::{LogicalPosition, LogicalSize, PhysicalPosition};
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy};
 use winit::window::{Window, WindowId, WindowLevel};
+use wry::http::{self, Response, StatusCode};
 use wry::{WebView, WebViewBuilder};
 
 // On Windows the OS main thread belongs to the Bun host, so the
@@ -91,6 +94,10 @@ const VETO_TIMEOUT: Duration = Duration::from_secs(10);
 /// How long [`window_open`] waits for the loop thread to confirm
 /// the window creation.
 const CREATE_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How long a window query ([`window_is_maximized`] and friends)
+/// waits for the loop thread to answer.
+const QUERY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// How long [`ensure_loop`] waits for the freshly spawned loop
 /// thread to publish its proxy.
@@ -179,6 +186,14 @@ pub struct WindowConfig {
     pub always_on_top: Option<bool>,
     /// Whether the window is hidden from the taskbar (Windows).
     pub skip_taskbar: Option<bool>,
+    /// The asset directory served to this window through the `bf`
+    /// custom protocol (set at creation; wry binds custom protocols
+    /// at webview build time). The page loads `bf://localhost/<rel
+    /// -path>` - wry maps it to `http://bf.localhost/<rel-path>` on
+    /// Windows, so the page sees `http://bf.localhost/...` origins:
+    /// spell URLs `bf://localhost/...` in app code. `/` serves
+    /// `index.html`.
+    pub asset_root: Option<String>,
 }
 
 impl WindowConfig {
@@ -199,6 +214,26 @@ impl WindowConfig {
     }
 }
 
+/// The inner (webview viewport) size of a window, in PHYSICAL
+/// pixels (the [`window_inner_size`] reply).
+#[derive(BffiRecord, Clone, Copy, Debug, PartialEq)]
+pub struct WindowSize {
+    /// Width, physical pixels.
+    pub width: u32,
+    /// Height, physical pixels.
+    pub height: u32,
+}
+
+/// The outer-frame position of a window, in PHYSICAL pixels (the
+/// [`window_position`] reply).
+#[derive(BffiRecord, Clone, Copy, Debug, PartialEq)]
+pub struct WindowPosition {
+    /// X, physical pixels.
+    pub x: i32,
+    /// Y, physical pixels.
+    pub y: i32,
+}
+
 /// The registry slot behind a window handle: the IPC binding
 /// ([`window_bind_ipc`]), the close-veto callback
 /// ([`window_bind_close`]) and the events stream created with the
@@ -209,6 +244,10 @@ struct WindowSlot {
     close_veto: Mutex<Option<u64>>,
     events: Mutex<Option<Ctx<String>>>,
     events_handle: Mutex<Option<u64>>,
+    /// The queue into the window's IPC worker (`None` = no worker
+    /// yet - the first [`window_bind_ipc`] spawns it; dropped by
+    /// [`close_window`] so the worker exits promptly).
+    ipc_tx: Mutex<Option<Sender<String>>>,
 }
 
 /// A live registry slot behind a raw window handle.
@@ -216,13 +255,6 @@ fn window_slot(handle: u64) -> Result<Arc<WindowSlot>, BunframeError> {
     Registry::global()
         .get_typed::<WindowSlot>(Handle::from_raw(handle))
         .ok_or(BunframeError::InvalidHandle)
-}
-
-/// The IPC callback handle of a window slot, if any.
-fn bound_ipc(handle: u64) -> Option<u64> {
-    let slot = window_slot(handle).ok()?;
-    let binding = slot.ipc.lock().unwrap_or_else(PoisonError::into_inner);
-    *binding
 }
 
 /// The close-veto callback handle of a window slot, if any.
@@ -299,6 +331,9 @@ fn ipc_take_reply(handle: u64) -> Option<String> {
 enum WindowOp {
     SetTitle(String),
     SetSize(u32, u32),
+    SetPosition(i32, i32),
+    Center,
+    SetMinSize(u32, u32),
     SetResizable(bool),
     SetDecorations(bool),
     SetAlwaysOnTop(bool),
@@ -319,6 +354,39 @@ impl WindowOp {
                 let _ = window
                     .request_inner_size(LogicalSize::new(f64::from(*width), f64::from(*height)));
             }
+            Self::SetPosition(x, y) => {
+                // LOGICAL pixels, matching the x/y of the open
+                // config.
+                window.set_outer_position(LogicalPosition::new(f64::from(*x), f64::from(*y)));
+            }
+            Self::Center => {
+                // Best-effort by design: `apply` ignores errors, so
+                // a window without a monitor simply stays put. The
+                // math is manual (winit 0.30 has no `Window::center`)
+                // and PHYSICAL: monitor origin + half the free area.
+                let Some(monitor) = window.current_monitor() else {
+                    return;
+                };
+                let monitor_pos = monitor.position();
+                let monitor_size = monitor.size();
+                let window_size = window.outer_size();
+                window.set_outer_position(PhysicalPosition::new(
+                    monitor_pos.x + (monitor_size.width as i32 - window_size.width as i32) / 2,
+                    monitor_pos.y + (monitor_size.height as i32 - window_size.height as i32) / 2,
+                ));
+            }
+            Self::SetMinSize(width, height) => {
+                // 0/0 clears the constraint (the ABI has no Option
+                // params); anything else clamps up to at least 1x1.
+                if *width == 0 && *height == 0 {
+                    window.set_min_inner_size::<LogicalSize<f64>>(None);
+                } else {
+                    window.set_min_inner_size(Some(LogicalSize::new(
+                        f64::from((*width).max(1)),
+                        f64::from((*height).max(1)),
+                    )));
+                }
+            }
             Self::SetResizable(on) => window.set_resizable(*on),
             Self::SetDecorations(on) => window.set_decorations(*on),
             Self::SetAlwaysOnTop(on) => window.set_window_level(if *on {
@@ -333,6 +401,54 @@ impl WindowOp {
             Self::Minimize => window.set_minimized(true),
             Self::OpenDevtools => entry.webview.open_devtools(),
         }
+    }
+}
+
+/// A loop-thread query: read-only window state, answered inline on
+/// the loop thread.
+enum QueryOp {
+    IsMaximized,
+    IsVisible,
+    InnerSize,
+    Position,
+}
+
+/// The answer to one [`QueryOp`].
+enum QueryReply {
+    Flag(bool),
+    Size { width: u32, height: u32 },
+    Position { x: i32, y: i32 },
+}
+
+impl QueryReply {
+    /// The bool of a `Flag` reply (type-checked unwrap).
+    fn into_flag(self) -> Result<bool, BunframeError> {
+        match self {
+            Self::Flag(flag) => Ok(flag),
+            _ => Err(unexpected_query_reply()),
+        }
+    }
+
+    /// The size of a `Size` reply (type-checked unwrap).
+    fn into_size(self) -> Result<WindowSize, BunframeError> {
+        match self {
+            Self::Size { width, height } => Ok(WindowSize { width, height }),
+            _ => Err(unexpected_query_reply()),
+        }
+    }
+
+    /// The position of a `Position` reply (type-checked unwrap).
+    fn into_position(self) -> Result<WindowPosition, BunframeError> {
+        match self {
+            Self::Position { x, y } => Ok(WindowPosition { x, y }),
+            _ => Err(unexpected_query_reply()),
+        }
+    }
+}
+
+fn unexpected_query_reply() -> BunframeError {
+    BunframeError::OperationFailed {
+        message: "the loop thread answered with the wrong query shape".to_owned(),
     }
 }
 
@@ -352,6 +468,13 @@ enum Command {
     Close { handle: u64 },
     /// Apply one window operation.
     Op { handle: u64, op: WindowOp },
+    /// Read one piece of window state; the loop thread answers the
+    /// channel inline.
+    Query {
+        handle: u64,
+        op: QueryOp,
+        reply: Sender<Result<QueryReply, String>>,
+    },
     /// Exit the loop thread (the explicit quit).
     Quit,
 }
@@ -496,6 +619,13 @@ impl ApplicationHandler<Command> for LoopApp {
                     op.apply(entry);
                 }
             }
+            Command::Query { handle, op, reply } => {
+                let outcome = match self.windows.get(&handle) {
+                    Some(entry) => run_query(entry, op),
+                    None => Err("unknown window".to_owned()),
+                };
+                let _ = reply.send(outcome);
+            }
         }
     }
 
@@ -538,6 +668,32 @@ impl ApplicationHandler<Command> for LoopApp {
             }
             _ => {}
         }
+    }
+}
+
+/// Reads one piece of window state (ON the loop thread; the winit
+/// `Window` is only sound here).
+fn run_query(entry: &WryWindow, op: QueryOp) -> Result<QueryReply, String> {
+    let window = &entry.window;
+    match op {
+        QueryOp::IsMaximized => Ok(QueryReply::Flag(window.is_maximized())),
+        QueryOp::IsVisible => Ok(QueryReply::Flag(window.is_visible().unwrap_or(false))),
+        QueryOp::InnerSize => {
+            let size = window.inner_size();
+            Ok(QueryReply::Size {
+                width: size.width,
+                height: size.height,
+            })
+        }
+        QueryOp::Position => window.outer_position().map_or_else(
+            |error| Err(format!("reading the window position failed: {error}")),
+            |position| {
+                Ok(QueryReply::Position {
+                    x: position.x,
+                    y: position.y,
+                })
+            },
+        ),
     }
 }
 
@@ -601,13 +757,23 @@ fn create_window(
             .unwrap_or_else(PoisonError::into_inner) = Some(events_handle.as_u64());
     }
 
-    let proxy = loop_proxy().map_err(|error| error.to_string())?;
     let mut builder = WebViewBuilder::new()
         .with_devtools(config.devtools.unwrap_or(false))
-        .with_transparent(config.transparent.unwrap_or(false))
-        .with_ipc_handler(move |request: wry::http::Request<String>| {
-            handle_ipc(raw, request.into_body(), proxy.clone());
+        .with_transparent(config.transparent.unwrap_or(false));
+    // Custom protocols bind ONLY at webview build time, so the
+    // asset root is a creation-time decision. The root must exist:
+    // canonicalize it here and serve from the canonical path (the
+    // traversal checks inside `serve_asset` rely on that).
+    if let Some(root) = &config.asset_root {
+        let canonical = std::fs::canonicalize(root)
+            .map_err(|error| format!("asset root {root:?} not found: {error}"))?;
+        builder = builder.with_custom_protocol("bf".to_owned(), move |_id, request| {
+            serve_asset(&canonical, &request)
         });
+    }
+    builder = builder.with_ipc_handler(move |request: http::Request<String>| {
+        handle_ipc(raw, request.into_body());
+    });
     if let Some(url) = config.url {
         builder = builder.with_url(url);
     }
@@ -636,55 +802,169 @@ fn close_window(app: &mut LoopApp, handle: u64) {
     if app.windows.remove(&handle).is_some() {
         push_event(handle, r#"{"type":"closed"}"#);
         complete_events(handle);
+        // Close the IPC worker's channel BEFORE the slot leaves the
+        // registry: the worker exits on its next recv (promptly,
+        // not at process teardown) even though it still holds an
+        // Arc of the slot.
+        if let Ok(slot) = window_slot(handle) {
+            *slot.ipc_tx.lock().unwrap_or_else(PoisonError::into_inner) = None;
+        }
         let _ = Registry::global().remove(Handle::from_raw(handle));
     }
 }
 
-/// The IPC roundtrip ON the loop thread: park until the JS thread
-/// answers, then queue the resolve script. The request body crosses
-/// the callback boundary itself (`Value::Str` -> the JSCallback's
-/// `cstring` argument). Blocking the UI thread for up to
-/// [`IPC_TIMEOUT`] is the price of the synchronous roundtrip - the
-/// Bun thread pumps meanwhile.
-fn handle_ipc(slot: u64, body: String, proxy: EventLoopProxy<Command>) {
-    eprintln!("[bunframe-dbg] ipc message on slot {slot}: {body}");
-    let bound = bound_ipc(slot);
-    eprintln!(
-        "[bunframe-dbg] handle_ipc slot {slot} bound={bound:?} body_len={}",
-        body.len()
-    );
-    let Some(ipc) = bound_ipc(slot) else {
-        // Nothing bound: drop the message instead of stalling the
-        // UI thread for a guaranteed timeout.
-        return;
+/// Serves one `bf://localhost/<rel-path>` request from the window's
+/// canonical asset root. Defense in depth: any `..` segment is a
+/// 403 before the filesystem is touched, and the canonicalized file
+/// path must stay inside the canonical root. Never panics (a broken
+/// builder falls back to a plain error response).
+fn serve_asset(root: &Path, request: &http::Request<Vec<u8>>) -> Response<Cow<'static, [u8]>> {
+    // The page spells `bf://localhost/<path>`; the handler sees the
+    // reverted URI.
+    let full = request.uri().to_string();
+    let Some(rest) = full
+        .strip_prefix("bf://localhost/")
+        .or_else(|| full.strip_prefix("http://bf.localhost/"))
+    else {
+        return plain_response(StatusCode::NOT_FOUND, "not found");
     };
-    let outcome = invoke_wait(Handle::from_raw(ipc), &[Value::Str(body)], IPC_TIMEOUT);
-    let reply = if outcome.is_ok() {
-        ipc_take_reply(slot)
-    } else {
-        None
+    // Strip any query/fragment, then default the document root.
+    let mut rel = rest.split(['?', '#']).next().unwrap_or("").to_owned();
+    if rel.is_empty() || rel.ends_with('/') {
+        rel.push_str("index.html");
+    }
+    if rel.split('/').any(|segment| segment == "..") {
+        return plain_response(StatusCode::FORBIDDEN, "forbidden");
+    }
+    let Ok(path) = std::fs::canonicalize(root.join(&rel)) else {
+        return plain_response(StatusCode::NOT_FOUND, "not found");
     };
-    let script = ipc_resolve_script(&outcome, reply);
-    let _ = proxy.send_event(Command::Eval {
-        handle: slot,
-        js: script,
-    });
+    if !path.starts_with(root) {
+        return plain_response(StatusCode::FORBIDDEN, "forbidden");
+    }
+    if path.is_dir() {
+        return plain_response(StatusCode::NOT_FOUND, "not found");
+    }
+    match std::fs::read(&path) {
+        Ok(bytes) => Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", asset_content_type(&rel))
+            .body(Cow::Owned(bytes))
+            .unwrap_or_else(|_| Response::new(Cow::Owned(Vec::new()))),
+        Err(_) => plain_response(StatusCode::NOT_FOUND, "not found"),
+    }
 }
 
-/// The script that settles the page-side promise: the reply JSON as
-/// a value, `null` without a reply, an `{ "error": ... }` object on
-/// the failure paths (timeout, dead handle, stopped loop).
-fn ipc_resolve_script(
-    outcome: &Result<Value, bffi::CallbackError>,
-    reply: Option<String>,
-) -> String {
-    match (outcome, reply) {
-        (Ok(_), Some(reply)) => format!("window.__bffiResolve({reply});"),
-        (Ok(_), None) => "window.__bffiResolve(null);".to_owned(),
-        (Err(error), _) => format!(
-            "window.__bffiResolve({{ \"error\": \"{}\" }});",
-            escape_js(&error.to_string())
-        ),
+/// The minimal error response of the asset protocol (plain text;
+/// the page only cares about the status code).
+fn plain_response(status: StatusCode, text: &'static str) -> Response<Cow<'static, [u8]>> {
+    Response::builder()
+        .status(status)
+        .header("Content-Type", "text/plain")
+        .body(Cow::Borrowed(text.as_bytes()))
+        .unwrap_or_else(|_| Response::new(Cow::Borrowed(&b"error"[..])))
+}
+
+/// The Content-Type for a served asset, from its extension.
+fn asset_content_type(path: &str) -> &'static str {
+    let extension = path.rsplit('.').next().unwrap_or("");
+    match extension {
+        "html" | "htm" => "text/html",
+        "js" | "mjs" => "text/javascript",
+        "css" => "text/css",
+        "json" | "map" => "application/json",
+        "svg" => "image/svg+xml",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "ico" => "image/x-icon",
+        "woff" => "font/woff",
+        "woff2" => "font/woff2",
+        "txt" => "text/plain",
+        _ => "application/octet-stream",
+    }
+}
+
+/// The wry ipc handler ON the loop thread: hands the request body
+/// to the window's IPC worker and returns immediately - the loop
+/// thread never parks here (the worker owns the roundtrip). With
+/// nothing bound (no worker yet) the message is dropped.
+fn handle_ipc(slot: u64, body: String) {
+    let Ok(entry) = window_slot(slot) else {
+        return;
+    };
+    let tx = entry
+        .ipc_tx
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    if let Some(tx) = tx {
+        let _ = tx.send(body);
+    }
+}
+
+/// Makes sure the window's IPC worker thread exists: it owns the
+/// receiving side of the ipc queue and drains into the loop thread
+/// (resolve scripts ride `Command::Eval`). The first
+/// [`window_bind_ipc`] spawns it; rebinding keeps the worker and
+/// just swaps the callback handle (read fresh every message).
+fn ensure_ipc_worker(handle: u64, slot: &Arc<WindowSlot>) -> Result<(), BunframeError> {
+    {
+        let tx = slot.ipc_tx.lock().unwrap_or_else(PoisonError::into_inner);
+        if tx.is_some() {
+            return Ok(());
+        }
+    }
+    let proxy = loop_proxy()?;
+    let (sender, receiver) = channel::<String>();
+    let worker_slot = Arc::clone(slot);
+    *slot.ipc_tx.lock().unwrap_or_else(PoisonError::into_inner) = Some(sender);
+    std::thread::Builder::new()
+        .name(format!("bunframe-ipc-{handle}"))
+        .spawn(move || ipc_worker(handle, worker_slot, receiver, proxy))
+        .map_err(|error| {
+            // The channel died with the spawn failure: reset so a
+            // retry can spawn a fresh worker.
+            if let Ok(slot) = window_slot(handle) {
+                *slot.ipc_tx.lock().unwrap_or_else(PoisonError::into_inner) = None;
+            }
+            BunframeError::CreateFailed {
+                message: format!("spawning the ipc worker failed: {error}"),
+            }
+        })?;
+    Ok(())
+}
+
+/// The per-window IPC worker: pulls queued page messages, invokes
+/// the bound JS callback (the Bun thread pumps meanwhile) and
+/// queues the settle script back through the loop thread. Exits
+/// when the queue closes ([`close_window`] drops the sender).
+fn ipc_worker(
+    handle: u64,
+    slot: Arc<WindowSlot>,
+    receiver: Receiver<String>,
+    proxy: EventLoopProxy<Command>,
+) {
+    while let Ok(body) = receiver.recv() {
+        let bound = *slot.ipc.lock().unwrap_or_else(PoisonError::into_inner);
+        let Some(ipc) = bound else {
+            // Nothing bound right now: drop the message instead of
+            // stalling a guaranteed timeout.
+            continue;
+        };
+        let outcome = invoke_wait(
+            Handle::from_raw(ipc),
+            &[Value::Str(body.clone())],
+            IPC_TIMEOUT,
+        );
+        let script = match outcome {
+            Ok(_) => match ipc_take_reply(handle) {
+                Some(reply) => format!("window.__bffiResolve({reply});"),
+                None => "window.__bffiResolve(null);".to_owned(),
+            },
+            Err(error) => resolve_error_script(&body, &error.to_string()),
+        };
+        let _ = proxy.send_event(Command::Eval { handle, js: script });
     }
 }
 
@@ -702,6 +982,32 @@ fn escape_js(text: &str) -> String {
         }
     }
     out
+}
+
+/// The failure settle script: routes the error to the pending
+/// promise by request `id` (best-effort; `null` when the body has
+/// no parsable id). Never panics - a broken page body must not take
+/// down the IPC worker.
+fn resolve_error_script(body: &str, message: &str) -> String {
+    let id_json = match extract_request_id(body) {
+        Some(id) => format!("\"{}\"", escape_js(&id)),
+        None => "null".to_owned(),
+    };
+    format!(
+        "window.__bffiResolve({{\"v\":1,\"id\":{id_json},\"ok\":false,\"error\":{{\"code\":\"NATIVE\",\"message\":\"{}\"}}}});",
+        escape_js(message)
+    )
+}
+
+/// Best-effort `"id":"<value>"` scan of an IPC request body (our
+/// own envelope; the crate carries no JSON dependency).
+fn extract_request_id(body: &str) -> Option<String> {
+    let key = body.find("\"id\"")?;
+    let after_key = &body[key + "\"id\"".len()..];
+    let open = after_key.find('"')?;
+    let after_open = &after_key[open + 1..];
+    let close = after_open.find('"')?;
+    Some(after_open[..close].to_owned())
 }
 
 /// The CloseRequested path (the title-bar X, and the test export):
@@ -733,28 +1039,46 @@ fn run_close_requested(handle: u64) {
     }
 }
 
-/// Injected into every page: the tiny promise bridge the UI code
-/// uses. The native side resolves through
-/// `window.__bffiResolve(json)` with the reply JSON as a VALUE. A
-/// call that gets no native answer within 2s rejects - so a page
-/// that starts before the JS side bound its ipc callback can retry.
-const IPC_BOOTSTRAP: &str = r#"window.__bffiPending = null;
-window.__bffiCall = (method, args) => new Promise((resolve, reject) => {
-  if (window.__bffiPending !== null) { reject(new Error("a call is already in flight")); return; }
-  const pending = { resolve, reject };
-  window.__bffiPending = pending;
-  window.ipc.postMessage(JSON.stringify({ method, args }));
-  setTimeout(() => {
-    if (window.__bffiPending === pending) {
-      window.__bffiPending = null;
-      reject(new Error("no native answer (is the ipc callback bound?)"));
-    }
-  }, 2000);
+/// Injected into every page: the promise bridge the UI code uses.
+/// Calls carry an `id` and settle id-routed through
+/// `window.__bffiResolve(payload)` - so calls PIPELINE (no
+/// single-flight guard) and a call never rejects on its own: the
+/// native 30s timeout settles every call with an error envelope,
+/// and requests serialize per window through the worker thread.
+/// `__bffiEvent` posts `kind: "evt"` frames (page -> bun
+/// fire-and-forget messages; the bun side acks with `ok: null`).
+/// `__bfDispatch`/`__bfOn` are the backend-to-page message door:
+/// frames posted while no listener is registered stay buffered
+/// until the first `__bfOn` (which drains the buffer first).
+const IPC_BOOTSTRAP: &str = r#"window.__bfPending = new Map();
+window.__bfId = () => (self.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + "-" + Math.random());
+window.__bffiCall = (method, args) => new Promise((resolve) => {
+  const id = window.__bfId();
+  window.__bfPending.set(id, { resolve });
+  window.ipc.postMessage(JSON.stringify({ v: 1, id, kind: "req", method, args }));
 });
-window.__bffiResolve = (json) => {
-  const pending = window.__bffiPending;
-  window.__bffiPending = null;
-  if (pending !== null) { pending.resolve(json); }
+window.__bffiEvent = (method, args) => new Promise((resolve) => {
+  const id = window.__bfId();
+  window.__bfPending.set(id, { resolve });
+  window.ipc.postMessage(JSON.stringify({ v: 1, id, kind: "evt", method, args }));
+});
+window.__bffiResolve = (payload) => {
+  if (payload && typeof payload === "object" && payload.id != null) {
+    const p = window.__bfPending.get(payload.id);
+    if (p) { window.__bfPending.delete(payload.id); p.resolve(payload); }
+  }
+};
+window.__bfBuffer = [];
+window.__bfListeners = [];
+window.__bfDispatch = (frame) => {
+  if (window.__bfListeners.length) { for (const l of window.__bfListeners.splice(0)) { try { l(frame); } catch {} } }
+  else { window.__bfBuffer.push(frame); }
+};
+window.__bfOn = (handler) => {
+  const buffered = window.__bfBuffer.splice(0);
+  for (const f of buffered) { try { handler(f); } catch {} }
+  window.__bfListeners.push(handler);
+  return () => { const i = window.__bfListeners.indexOf(handler); if (i >= 0) window.__bfListeners.splice(i, 1); };
 };"#;
 
 /// Validates the slot handle and returns it (the shared guard of
@@ -770,6 +1094,26 @@ fn send_op(handle: u64, op: WindowOp) -> Result<(), BunframeError> {
     loop_proxy()?
         .send_event(Command::Op { handle, op })
         .map_err(|_| BunframeError::LoopNotRunning)
+}
+
+/// Validates the slot and runs one read-only query: the command
+/// round trip mirrors [`window_open`] (validate, proxy, wait
+/// bounded for the loop-thread answer). The Bun thread blocks for
+/// up to [`QUERY_TIMEOUT`] - no pump involvement (a plain channel,
+/// no callback marshalling).
+fn query_window(handle: u64, op: QueryOp) -> Result<QueryReply, BunframeError> {
+    live_slot(handle)?;
+    let proxy = loop_proxy()?;
+    let (reply, answer) = channel();
+    proxy
+        .send_event(Command::Query { handle, op, reply })
+        .map_err(|_| BunframeError::LoopNotRunning)?;
+    match answer.recv_timeout(QUERY_TIMEOUT) {
+        Ok(outcome) => outcome.map_err(|message| BunframeError::OperationFailed { message }),
+        Err(_) => Err(BunframeError::OperationFailed {
+            message: "the loop thread did not answer the query".to_owned(),
+        }),
+    }
 }
 
 /// Validates a bound callback handle against an exact signature.
@@ -813,12 +1157,12 @@ fn validate_callback(
 
 /// Opens a window described by `config` (inline `html` or a `url`,
 /// title, size, min size, decorations, transparency, position,
-/// maximized/visible/always-on-top/skip-taskbar, devtools) and
-/// returns its opaque handle. The first call spawns the dedicated
-/// loop thread (winit event loop + window + wry surface live
-/// there); the Bun thread only waits, bounded, for the creation
-/// reply. The window's events stream opens with the window - pull
-/// it through [`window_events`].
+/// maximized/visible/always-on-top/skip-taskbar, devtools, `bf`
+/// asset serving) and returns its opaque handle. The first call
+/// spawns the dedicated loop thread (winit event loop + window +
+/// wry surface live there); the Bun thread only waits, bounded, for
+/// the creation reply. The window's events stream opens with the
+/// window - pull it through [`window_events`].
 #[bffi]
 pub fn window_open(config: WindowConfig) -> Result<u64, BunframeError> {
     let proxy = ensure_loop()?;
@@ -887,6 +1231,30 @@ pub fn window_set_size(handle: u64, width: u32, height: u32) -> Result<(), Bunfr
     send_op(handle, WindowOp::SetSize(width, height))
 }
 
+/// Sets the window position (logical pixels - the same space as the
+/// `x`/`y` open config).
+#[bffi]
+pub fn window_set_position(handle: u64, x: i32, y: i32) -> Result<(), BunframeError> {
+    send_op(handle, WindowOp::SetPosition(x, y))
+}
+
+/// Centers the window on its current monitor. Best-effort: window
+/// ops are fire-and-forget, so a window without a monitor simply
+/// stays put (the center math is PHYSICAL and manual - winit 0.30
+/// has no `Window::center`).
+#[bffi]
+pub fn window_center(handle: u64) -> Result<(), BunframeError> {
+    send_op(handle, WindowOp::Center)
+}
+
+/// Sets the minimum window size (logical pixels); `0/0` clears the
+/// constraint (the ABI has no Option params), any other pair clamps
+/// up to at least 1x1.
+#[bffi]
+pub fn window_set_min_size(handle: u64, width: u32, height: u32) -> Result<(), BunframeError> {
+    send_op(handle, WindowOp::SetMinSize(width, height))
+}
+
 /// Sets whether the window is resizable.
 #[bffi]
 pub fn window_set_resizable(handle: u64, on: bool) -> Result<(), BunframeError> {
@@ -935,6 +1303,34 @@ pub fn window_minimize(handle: u64) -> Result<(), BunframeError> {
     send_op(handle, WindowOp::Minimize)
 }
 
+/// Whether the window behind `handle` is currently maximized
+/// (queried on the loop thread; the Bun thread waits, bounded, for
+/// the answer).
+#[bffi]
+pub fn window_is_maximized(handle: u64) -> Result<bool, BunframeError> {
+    query_window(handle, QueryOp::IsMaximized)?.into_flag()
+}
+
+/// Whether the window behind `handle` is currently visible.
+#[bffi]
+pub fn window_is_visible(handle: u64) -> Result<bool, BunframeError> {
+    query_window(handle, QueryOp::IsVisible)?.into_flag()
+}
+
+/// The inner (webview viewport) size of the window behind
+/// `handle`, in PHYSICAL pixels.
+#[bffi]
+pub fn window_inner_size(handle: u64) -> Result<WindowSize, BunframeError> {
+    query_window(handle, QueryOp::InnerSize)?.into_size()
+}
+
+/// The outer-frame position of the window behind `handle`, in
+/// PHYSICAL pixels.
+#[bffi]
+pub fn window_position(handle: u64) -> Result<WindowPosition, BunframeError> {
+    query_window(handle, QueryOp::Position)?.into_position()
+}
+
 /// Opens the webview devtools of the window.
 #[bffi]
 pub fn window_open_devtools(handle: u64) -> Result<(), BunframeError> {
@@ -945,13 +1341,19 @@ pub fn window_open_devtools(handle: u64) -> Result<(), BunframeError> {
 /// handler: `ipc` is a JS-BOUND callback handle with the signature
 /// `unit(str)` - the request body arrives as the `cstring`
 /// argument; the handler answers through [`window_ipc_reply`].
+///
+/// The first bind spawns the window's IPC worker thread: page
+/// messages queue on it, so the loop thread never parks inside the
+/// wry ipc handler and calls can pipeline. Rebinding keeps the
+/// worker and just swaps the callback handle (read fresh per
+/// message).
 #[bffi]
 pub fn window_bind_ipc(handle: u64, ipc: u64) -> Result<(), BunframeError> {
     live_slot(handle)?;
     validate_callback(ipc, bffi::ValueType::Unit, &[bffi::ValueType::Str])?;
     let slot = window_slot(handle)?;
+    ensure_ipc_worker(handle, &slot)?;
     *slot.ipc.lock().unwrap_or_else(PoisonError::into_inner) = Some(ipc);
-    eprintln!("[bunframe-dbg] bind_ipc stored slot {handle} ipc {ipc}");
     Ok(())
 }
 
@@ -1049,9 +1451,10 @@ mod tests {
 
     use super::{
         DEFAULT_HEIGHT, DEFAULT_TITLE, DEFAULT_WIDTH, IpcBox, WINDOW_TAG, WindowConfig, WindowSlot,
-        escape_js, ipc_put_reply, ipc_resolve_script, ipc_take_reply, window_slot,
+        escape_js, extract_request_id, ipc_put_reply, ipc_take_reply, resolve_error_script,
+        window_slot,
     };
-    use bffi::{CallbackError, Registry, Value};
+    use bffi::Registry;
 
     #[test]
     fn effective_values_fall_back_to_defaults() {
@@ -1098,19 +1501,42 @@ mod tests {
     }
 
     #[test]
-    fn resolve_script_embeds_the_reply_or_the_error() {
-        let ok = Ok(Value::Bool(true));
+    fn extract_request_id_finds_the_envelope_id() {
         assert_eq!(
-            ipc_resolve_script(&ok, Some(r#"{"pong":"ping"}"#.to_owned())),
-            r#"window.__bffiResolve({"pong":"ping"});"#
+            extract_request_id(r#"{"v":1,"id":"abc-1","kind":"req"}"#).as_deref(),
+            Some("abc-1")
         );
-        assert_eq!(ipc_resolve_script(&ok, None), "window.__bffiResolve(null);");
-        let error = Err(CallbackError::Timeout);
-        let script = ipc_resolve_script(&error, None);
-        assert!(
-            script.starts_with(r#"window.__bffiResolve({ "error": ""#)
-                && script.ends_with(r#"" });"#),
-            "the failure script must embed an escaped error object: {script}"
+        // The id value is scanned to its closing quote, spaces or
+        // not.
+        assert_eq!(
+            extract_request_id(r#"{"id": "spaced id"}"#).as_deref(),
+            Some("spaced id")
+        );
+    }
+
+    #[test]
+    fn extract_request_id_survives_missing_and_malformed_bodies() {
+        assert_eq!(extract_request_id(""), None);
+        assert_eq!(extract_request_id(r#"{"method":"ping"}"#), None);
+        // Unclosed value: no closing quote, no id.
+        assert_eq!(extract_request_id(r#"{"id":"unclosed"#), None);
+        // Numeric ids are not string-scanned: null fallback.
+        assert_eq!(extract_request_id(r#"{"id":42}"#), None);
+    }
+
+    #[test]
+    fn resolve_error_script_routes_the_error_by_id() {
+        assert_eq!(
+            resolve_error_script(r#"{"v":1,"id":"x","kind":"req"}"#, "boom"),
+            r#"window.__bffiResolve({"v":1,"id":"x","ok":false,"error":{"code":"NATIVE","message":"boom"}});"#
+        );
+    }
+
+    #[test]
+    fn resolve_error_script_falls_back_to_null_id_and_escapes() {
+        assert_eq!(
+            resolve_error_script("garbage", "a\"b\nc"),
+            r#"window.__bffiResolve({"v":1,"id":null,"ok":false,"error":{"code":"NATIVE","message":"a\"b\nc"}});"#
         );
     }
 

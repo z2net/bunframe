@@ -23,40 +23,59 @@ Critical). Fixes are released as coordinated disclosures - please
 do not disclose publicly until a fix ships. Credit is given on
 request.
 
-## Scope
+---
 
-- Memory safety bugs in the FFI boundary (the bffi binding)
-- Window handle table corruption / type confusion
-- IPC bridge injection: a page escaping its window's command
-  surface through crafted `postMessage` bodies
-- Close-veto bypass: a window closing without the veto callback
-  being consulted when one is bound
-- Events stream integrity: a consumer observing another window's
-  events
-- Panic propagation issues / the `catch_unwind` boundary policy
-- Malformed wire payloads: integer overflow, allocation DoS via
-  declared lengths, unbounded nesting
-- Race conditions, use-after-free, callback deadlocks (including
-  re-entrant `invoke_wait`)
+# The bunframe trust model
 
-Out of scope:
+Status: v0.1.0 (honest scope). Read this before shipping an app on
+bunframe.
 
-- Bugs in Bun itself (report to oven-sh/bun)
-- Bugs in the Rust toolchain
-- Bugs in the webview stacks (WebView2 / WKWebView / WebKitGTK) -
-  report upstream (they are the same dependencies Tauri uses)
-- A native module behaving maliciously once loaded: loading a
-  cdylib is arbitrary code execution BY DESIGN
+## The one rule
 
-## Trust model (short version)
+**The page is a privileged caller.** Every `rpc.request.*` method the
+backend registers is remotely invokable by ANY script running in the
+window: the IPC bootstrap hands the page a direct, validated door
+into your Bun process. Treat the page like you would treat a local
+admin CLI, not like a website.
 
-- bunframe provides **panic containment** (release shims convert
-  Rust panics into JS errors where possible), NOT **process
-  isolation**: the core runs inside the Bun process. Memory
-  corruption in native code can take down the host regardless.
-- The webview PAGE is untrusted relative to the backend: only the
-  bound IPC callback can reach the backend, and only with the
-  signature declared at bind time. Keep the page's command surface
-  explicit and reviewed.
-- The release `panic = "unwind"` profile is REQUIRED: `panic =
-  "abort"` breaks the containment policy and aborts the host.
+## What protects you today
+
+- **Schema validation, always on, bun side.** Every request's `args`,
+  every handler's response and every message payload is validated
+  against the shared schema (Standard Schema: the built-in `s`
+  descriptors or zod/valibot/arktype) before it reaches your handler
+  or leaves to the page. A page cannot smuggle shapes past
+  `app.handle`.
+- **Method-level capability.** Only methods registered through
+  `app.handle` exist; everything else answers `NOT_FOUND`. The page
+  has NO access to the window API, the filesystem, or the process -
+  only to the commands you exposed.
+- **Sync handlers, one at a time.** A request runs to completion
+  before the next one on the same window starts (v0.1.0 contract) -
+  no request interleaving inside your backend.
+- **Asset roots are jailed.** `asset_root` serves files only from
+  the canonicalized directory: `..` segments and canonical-path
+  escapes answer 403, misses answer 404.
+
+## What is NOT protected (v0.1.0)
+
+- **No CSP story.** A page can fetch/load remote content if its HTML
+  says so; a compromised dependency in your frontend code owns every
+  registered command. Pin your frontend deps.
+- **No per-origin/per-webview command scoping.** All windows of an
+  app share the command registry.
+- **No secrets in the page.** Anything the page can request, a user
+  with devtools can request too (`window.__bffiCall` is right there).
+- **No integrity for the asset directory.** Whatever lands in
+  `asset_root` at runtime gets served.
+
+## Guidance
+
+1. Expose NARROW commands: validate not just shapes but values
+   (ranges, enums) in the schema; keep handlers side-effect-lean.
+2. Never register commands that execute raw paths, raw SQL or raw
+   shell from page arguments.
+3. Long/loud work belongs in Bun workers - the handler contract is
+   sync-per-call by design.
+4. In production, serve the frontend from `asset_root` (a directory
+   YOU control at build time), not from a dev server URL.
