@@ -5,7 +5,7 @@
     "": {
       "name": "bunframe",
       "dependencies": {
-        "@z2net/bffi": "^0.2.1",
+        "@z2net/bffi": "^0.2.3",
       },
       "devDependencies": {
         "@types/bun": "1.4.2",
@@ -16,12 +16,12 @@
     },
     "packages/bunframe": {
       "name": "@z2net/bunframe",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "bin": {
         "bunframe": "./src/cli/main.ts",
       },
       "dependencies": {
-        "@z2net/bffi": "^0.2.1",
+        "@z2net/bffi": "^0.2.3",
       },
     },
   },
@@ -108,7 +108,7 @@
 
     "@typescript/typescript-win32-x64": ["@typescript/typescript-win32-x64@7.0.2", "", { "os": "win32", "cpu": "x64" }, "sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g=="],
 
-    "@z2net/bffi": ["@z2net/bffi@0.2.1", "", {}, "sha512-xv9yJ+PFTuxBR9DI5KH4Db6XIilO0/dC1g0HbwhNvHRXuErSy2tBQi+9hCMv7p+by17UpRKerF/AhTR3jVmpBw=="],
+    "@z2net/bffi": ["@z2net/bffi@0.2.3", "", {}, "sha512-99qMKVr2TtaK+NakWZMs3tnxsyPo/4Ilkt/XHz66AK3wI4aYgopzwOo76V3920E/EaNVfRYBHlprfmkJtuC1pg=="],
 
     "@z2net/bunframe": ["@z2net/bunframe@workspace:packages/bunframe"],
 

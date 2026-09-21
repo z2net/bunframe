@@ -25,7 +25,7 @@ const moduleJson = {
   "bffi": 1,
   "module": "bunframe",
   "abiVersion": 1,
-  "exportsHash": "1187798650473324034",
+  "exportsHash": "8454069739320850434",
   "functions": [
     {
       "name": "window_open",
@@ -227,9 +227,8 @@ const moduleJson = {
       "name": "window_set_min_size",
       "export": "bffi_window_set_min_size",
       "docs": [
-        "Sets the minimum window size (logical pixels); `0/0` clears the",
-        "constraint (the ABI has no Option params), any other pair clamps",
-        "up to at least 1x1."
+        "Sets the minimum window size (logical pixels). `None` leaves the",
+        "axis unconstrained; both `None` clears the constraint entirely."
       ],
       "params": [
         {
@@ -239,13 +238,13 @@ const moduleJson = {
         },
         {
           "name": "width",
-          "ts": "number",
-          "abi": "u32"
+          "ts": "number | null",
+          "abi": "opt_number"
         },
         {
           "name": "height",
-          "ts": "number",
-          "abi": "u32"
+          "ts": "number | null",
+          "abi": "opt_number"
         }
       ],
       "ret": {
@@ -927,6 +926,26 @@ const moduleJson = {
   ]
 } as const satisfies ModuleJson;
 
+/**
+ * The open request: everything optional (`None` rides the
+ * `TAG_UNIT` wire byte and arrives as `null` on the JS side).
+ * Exactly one of `url`/`html` should be set; `html` wins if both
+ * are (wry ignores `url` when `html` is present). Sizes and
+ * positions are LOGICAL pixels. Without `x`/`y` the OS picks the
+ * position.
+ */
+export type WindowConfig = TsOf<"WindowConfig", typeof moduleJson>;
+/**
+ * The inner (webview viewport) size of a window, in PHYSICAL
+ * pixels (the [`window_inner_size`] reply).
+ */
+export type WindowSize = TsOf<"WindowSize", typeof moduleJson>;
+/**
+ * The outer-frame position of a window, in PHYSICAL pixels (the
+ * [`window_position`] reply).
+ */
+export type WindowPosition = TsOf<"WindowPosition", typeof moduleJson>;
+
 /** The explicit low-level loader: opens the native library at
  * `libraryPath` and returns the typed API. Passing a raw binary
  * path is a trust decision - the pipeline resolves platform
@@ -1043,7 +1062,7 @@ export function createApiFromJson(libraryPath: string): ApiOf<typeof moduleJson>
     }
   };
   const sym_window_set_min_size = sym("bffi_window_set_min_size");
-  const fn_window_set_min_size = function (a0: TsOf<"bigint", typeof moduleJson>, a1: TsOf<"number", typeof moduleJson>, a2: TsOf<"number", typeof moduleJson>): void {
+  const fn_window_set_min_size = function (a0: TsOf<"bigint", typeof moduleJson>, a1: TsOf<"number | null", typeof moduleJson>, a2: TsOf<"number | null", typeof moduleJson>): void {
     if (arguments.length !== 3) {
       throw new Error("window_set_min_size: expected 3 argument(s), got " + arguments.length);
     }
