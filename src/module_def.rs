@@ -1,8 +1,7 @@
 //! THE single descriptor aggregation of the bunframe core: one
-//! explicit `ModuleDef` (functions, the `WindowConfig` record and
-//! the typed errors table) consumed by the `emit-json` binary
-//! (which materializes `.bffi/bffi.api.json` for the `@z2net/bffi`
-//! pipeline).
+//! explicit `ModuleDef` (functions, the records, the typed errors
+//! table) consumed by the `emit-json` binary (which materializes
+//! `.bffi/bffi.api.json` for the `@z2net/bffi` pipeline).
 
 use bffi::{ErrorDef, FunctionDef, ModuleDef, RecordDef};
 
@@ -14,6 +13,9 @@ pub const FUNCTIONS: &[FunctionDef] = &[
     crate::bffi_meta_window_eval::FUNCTION,
     crate::bffi_meta_window_set_title::FUNCTION,
     crate::bffi_meta_window_set_size::FUNCTION,
+    crate::bffi_meta_window_set_position::FUNCTION,
+    crate::bffi_meta_window_center::FUNCTION,
+    crate::bffi_meta_window_set_min_size::FUNCTION,
     crate::bffi_meta_window_set_resizable::FUNCTION,
     crate::bffi_meta_window_set_decorations::FUNCTION,
     crate::bffi_meta_window_set_always_on_top::FUNCTION,
@@ -22,6 +24,10 @@ pub const FUNCTIONS: &[FunctionDef] = &[
     crate::bffi_meta_window_maximize::FUNCTION,
     crate::bffi_meta_window_unmaximize::FUNCTION,
     crate::bffi_meta_window_minimize::FUNCTION,
+    crate::bffi_meta_window_is_maximized::FUNCTION,
+    crate::bffi_meta_window_is_visible::FUNCTION,
+    crate::bffi_meta_window_inner_size::FUNCTION,
+    crate::bffi_meta_window_position::FUNCTION,
     crate::bffi_meta_window_open_devtools::FUNCTION,
     crate::bffi_meta_window_bind_ipc::FUNCTION,
     crate::bffi_meta_window_ipc_reply::FUNCTION,
@@ -32,7 +38,11 @@ pub const FUNCTIONS: &[FunctionDef] = &[
 ];
 
 /// The record types of the core.
-pub const RECORDS: &[RecordDef] = &[crate::WindowConfig::BFFI_RECORD_DEF];
+pub const RECORDS: &[RecordDef] = &[
+    crate::WindowConfig::BFFI_RECORD_DEF,
+    crate::WindowSize::BFFI_RECORD_DEF,
+    crate::WindowPosition::BFFI_RECORD_DEF,
+];
 
 /// The typed errors of the core.
 pub const ERRORS: &[ErrorDef] = &[crate::BunframeError::BFFI_ERROR_DEF];
