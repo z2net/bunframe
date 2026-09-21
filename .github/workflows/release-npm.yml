@@ -1,0 +1,115 @@
+# Publishes the npm family when a GitHub release is published (a
+# release implies the v* tag), in the dependency-safe order:
+#
+#   1. @z2net/bunframe-core-win-x64 - the prebuilt cdylib, assembled
+#      with scripts/pack-native.ts (windows-latest builds it natively)
+#   2. @z2net/bunframe - the package (the workflow pins the platform
+#      binary as an optionalDependency at the same version)
+#
+# Every publish is IDEMPOTENT: a version that already exists on the
+# registry is skipped with a green check, so a re-run never fails on
+# an already-published package.
+#
+# One-time setup (repository settings):
+#   Secrets -> Actions -> NPM_TOKEN : an npm token with read/write on
+#   the @z2net scope. npm authentication follows the canonical
+#   pattern: actions/setup-node with registry-url writes the .npmrc,
+#   npm publish authenticates through NODE_AUTH_TOKEN.
+name: release-npm
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-platform:
+    name: publish @z2net/bunframe-core-win-x64
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      # The repo pins the toolchain via rust-toolchain.toml (1.98.0);
+      # rustup resolves it on the first cargo invocation.
+      - name: Set up the pinned Rust toolchain
+        run: rustup toolchain install
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Build the release cdylib
+        run: cargo build --release
+
+      - name: Assemble the platform package
+        shell: bash
+        run: bun scripts/pack-native.ts --src target/release/bunframe_core.dll --out platform
+
+      # Canonical npm authentication: setup-node + registry-url writes
+      # the .npmrc, NODE_AUTH_TOKEN authenticates the publish.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22.x"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish the platform package (skip if the version exists)
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN is not configured - add the repository secret to enable publishing."
+            exit 1
+          fi
+          cd platform/bunframe-core-win-x64
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if npm view "$PKG_NAME@$PKG_VERSION" version >/dev/null 2>&1; then
+            echo "$PKG_NAME@$PKG_VERSION is already published - skipping."
+          else
+            npm publish --access public --provenance
+          fi
+
+  publish-package:
+    name: publish @z2net/bunframe
+    needs: publish-platform
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22.x"
+          registry-url: "https://registry.npmjs.org"
+
+      # Pin the platform binary as an optionalDependency at the
+      # release version - the loader resolves it on a clean machine
+      # (no Rust toolchain, no local build).
+      - name: Pin the platform binary dependency
+        working-directory: packages/bunframe
+        run: |
+          VERSION=$(node -p "require('../../package.json').version")
+          npm pkg set "optionalDependencies.@z2net/bunframe-core-win-x64=${VERSION}"
+
+      - name: Publish @z2net/bunframe (skip if the version exists)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN is not configured - add the repository secret to enable publishing."
+            exit 1
+          fi
+          cd packages/bunframe
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if npm view "$PKG_NAME@$PKG_VERSION" version >/dev/null 2>&1; then
+            echo "$PKG_NAME@$PKG_VERSION is already published - skipping."
+          else
+            npm publish --access public --provenance
+          fi
