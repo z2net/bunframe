@@ -24,7 +24,7 @@
     "ci": "bun run lint && bun run typecheck && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test && bun test"
   },
   "dependencies": {
-    "@z2net/bffi": "^0.2.1"
+    "@z2net/bffi": "^0.2.3"
   },
   "devDependencies": {
     "@types/bun": "1.4.2",
