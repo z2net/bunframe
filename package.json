@@ -20,7 +20,7 @@
     "test": "bun test",
     "test:rust": "cargo test",
     "e2e": "BFFI_E2E=1 bun test",
-    "codegen": "cargo run --release --bin emit-json && bunx @z2net/bffi-cli codegen .bffi/bffi.api.json -o .bffi/api.gen.ts && bun run scripts/sync-api-gen.ts",
+    "codegen": "cargo run --release --bin emit-json && bunx @z2net/bffi-cli@0.2.3 codegen .bffi/bffi.api.json -o .bffi/api.gen.ts && bun run scripts/sync-api-gen.ts",
     "ci": "bun run lint && bun run typecheck && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test && bun test"
   },
   "dependencies": {
