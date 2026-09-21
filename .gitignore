@@ -79,3 +79,6 @@ tmp/
 # ===== Patch debris =====
 *.orig
 *.rej
+
+# the packed native packages (release artifacts)
+platform/
